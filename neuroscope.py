@@ -1,20 +1,13 @@
 import os
+from functools import partialmethod
 
 import numpy as np
 import pandas as pd
 from bs4 import BeautifulSoup
 
-from pynwb import load_namespaces, get_class
 from pynwb.misc import UnitTimes
-from general import gzip
-
-import pdb
-
-name = 'general'
-ns_path = name + '.namespace.yaml'
-
-load_namespaces(ns_path)
-PopulationSpikeTimes = get_class('PopulationSpikeTimes', name)
+from pynwb.form.backends.hdf5 import H5DataIO as gzip
+gzip.__init__ = partialmethod(gzip.__init__, compress=True)
 
 
 def load_xml(filepath):
@@ -99,6 +92,7 @@ def get_position_data(fpath, fname, fs=1250./32.,
     -------
     df: pandas.DataFrame
     """
+    print('warning: time may not be aligned')
     df = pd.read_csv(os.path.join(fpath, fname + '.whl'),
                      sep='\t', names=names)
 
@@ -144,7 +138,7 @@ def get_clusters_single_shank(fpath, fname, shankn):
 
 
 def build_unit_times(fpath, fname, shanks=None, name='UnitTimes',
-                     source=None, compress=True):
+                     source=None):
     """
 
     Parameters
@@ -180,52 +174,3 @@ def build_unit_times(fpath, fname, shanks=None, name='UnitTimes',
             cell_counter += 1
 
     return ut
-
-
-def build_pop_spikes(fpath, fname, shanks=None, name='Population Spike Times',
-                     source=None, compress=True):
-    """Convert from .res and .clu files to parameters that go into
-    PopulationSpikeTimes
-
-    Parameters
-    ----------
-    fpath: str
-    fname: str
-    shanks: None | list(ints)
-        shank numbers to process. If None, use 1:8
-    name: str
-    source: str
-
-    Returns
-    -------
-    PopulationSpikeTimes Object
-
-    """
-
-    raise Warning('DEPRICATED. USE UnitTimes')
-    fnamepath = os.path.join(fpath, fname)
-
-    if shanks is None:
-        shanks = range(1, 9)
-
-    if source is None:
-        source = fnamepath + '.res.*; ' + fnamepath + '.clu.*'
-
-    values = []
-    pointers = [0, ]
-    for shank_num in shanks:
-        df = get_clusters_single_shank(fpath, fname, shank_num)
-        for cluster_num, idf, in df.groupby('id'):
-            values += list(idf['time'])
-            pointers.append(len(values))
-    cell_index = np.arange(len(pointers) - 1)
-
-    if compress:
-        cell_index = gzip(cell_index)
-        values = gzip(values)
-        pointers = gzip(pointers)
-
-    pst_obj = PopulationSpikeTimes(cell_index=cell_index, value=values,
-                                   pointer=pointers, name=name, source=source)
-
-    return pst_obj

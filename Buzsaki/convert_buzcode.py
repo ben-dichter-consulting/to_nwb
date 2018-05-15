@@ -23,29 +23,17 @@ fpath = 'C:\\Users\\Sam\\Documents\\source_data\\crcns_hc-3\\ec013.157\\ec013.15
 
 fpath_base, fname = os.path.split(fpath)
 
-sI = loadmat(os.path.join(fpath_base, fname + '.sessionInfo.mat'),
-             struct_as_record=True)
+session_info_matin = loadmat(
+    os.path.join(fpath_base, fname + '.sessionInfo.mat'),
+    struct_as_record=True)
+date_text = session_info_matin['sessionInfo']['Date'][0][0][0]
 
-aI = loadmat(os.path.join(fpath_base, fname + '.animalMetaData.mat'),
-             struct_as_record=True)
 
-date_text = np.array2string(sI['sessionInfo']['Date'][0][0])
-date_text = date_text[2:-2];
+animal_info_matin = loadmat(
+    os.path.join(fpath_base, fname + '.animalMetaData.mat'),
+    struct_as_record=True)
+animal_info = {key: animal_info_matin[key][0][0][0] for key in animal_info_matin.keys()}
 
-subject_id = np.array2string(aI['animal']['ID'][0][0])
-subject_id = subject_id[2:-2];
-
-species = np.array2string(aI['animal']['species'][0][0])
-species = species[2:-2];
-
-genotype = np.array2string(aI['animal']['strain'][0][0])
-genotype = genotype[2:-2];
-
-DOB = np.array2string(aI['animal']['DOB'][0][0])
-DOB = DOB[2:-2];
-
-implantation = np.array2string(aI['animal']['surgeryDate'][0][0])
-implantation = implantation[2:-2];
 
 session_description = 'mouse in open exploration and theta maze'
 identifier = fname
@@ -54,14 +42,14 @@ lab = 'Buzsaki'
 
 session_start_time = dateparse(date_text, yearfirst=True)
 
-if type(DOB) is not str:
-    age = session_start_time - DOB
+if type(animal_info['DOB']) is not str:
+    age = session_start_time - animal_info['DOB']
 else:
     age = 0
 
-subject = Subject(subject_id=subject_id, age=str(age),
-                  genotype=genotype,
-                  species=species, source='source')
+subject = Subject(subject_id=animal_info['subject_id'],
+                  age=str(age), genotype=animal_info['genotype'],
+                  species=animal_info['species'], source='source')
 
 source = fname
 nwbfile = NWBFile(source, session_description, identifier,

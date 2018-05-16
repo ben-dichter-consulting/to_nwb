@@ -9,7 +9,7 @@ import pandas as pd
 from pynwb import NWBFile, NWBHDF5IO
 from pynwb.file import Subject
 from pynwb.behavior import SpatialSeries, Position
-from pynwb.ecephys import ElectricalSeries
+from pynwb.ecephys import ElectricalSeries, LFP
 
 from utils import find_discontinuities
 import neuroscope as ns
@@ -21,10 +21,7 @@ WRITE_ALL_LFPS = False
 fpath = '/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/YutaMouse41-150903'
 subject_fpath = '/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/YM41 exp_sheet.xlsx'
 fpath_base, fname = os.path.split(fpath)
-session_description = 'mouse in open exploration and theta maze'
 identifier = fname
-institution = 'NYU'
-lab = 'Buzsaki'
 
 subject_id, date_text = fname.split('-')
 session_start_time = dateparse(date_text, yearfirst=True)
@@ -42,9 +39,17 @@ subject = Subject(subject_id=subject_id, age=str(age),
                   species='mouse', source='source')
 
 source = fname
-nwbfile = NWBFile(source, session_description, identifier,
-                  session_start_time, datetime.now(),
-                  institution=institution, lab=lab, subject=subject)
+nwbfile = NWBFile(source=source,
+                  session_description='mouse in open exploration and theta maze',
+                  identifier=identifier,
+                  session_start_time=session_start_time,
+                  file_create_date=datetime.now(),
+                  experimenter='Yuta Senzai',
+                  session_id=fname,
+                  institution='NYU',
+                  lab='Buzsaki',
+                  subject=subject,
+                  related_publications='DOI:10.1016/j.neuron.2016.12.011')
 
 all_ts = []
 
@@ -172,6 +177,8 @@ lfp = nwbfile.add_acquisition(
                      rate=lfp_fs,
                      resolution=np.nan))
 all_ts.append(lfp)
+
+nwbfile.add_acquisition(lfp, )
 
 
 # create epochs corresponding to experiments/environments for the mouse

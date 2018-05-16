@@ -78,3 +78,4 @@ nwbfile.add_acquisition(
 
 with NWBHDF5IO('resting_state.nwb') as io:
     io.write(nwbfile)
+

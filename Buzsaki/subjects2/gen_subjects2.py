@@ -29,7 +29,7 @@ surgery = NWBGroupSpec(neurodata_type_def='Surgery',
                        ],
                        groups=[virus_injection],
                        attributes=[NWBAttributeSpec(name='date', doc='date in ISO 8601', dtype='text'),
-                                   NWBAttributeSpec(name='notes', doc='notes', dtype='str'),
+                                   NWBAttributeSpec(name='notes', doc='notes', dtype='text'),
                                    NWBAttributeSpec(name='pharmacology', doc='pharmacology', dtype='text'),
                                    NWBAttributeSpec(name='target_anatomy', doc='target anatomy', dtype='text')])
 
@@ -38,24 +38,24 @@ subject = NWBGroupSpec(neurodata_type_def='Subject2',
                        name='Subject2',
                        doc='information about subject',
                        groups=[surgery],
-                       attributes=[NWBAttributeSpec(name='genotype', dtype='text', doc='genotype', quantity='?'),
-                                   NWBAttributeSpec(name='date_of_birth', dtype='text', doc='ISO 8601', quantity='?'),
+                       attributes=[NWBAttributeSpec(name='genotype', dtype='text', doc='genotype', required=False),
+                                   NWBAttributeSpec(name='date_of_birth', dtype='text', doc='ISO 8601', required=False),
                                    NWBAttributeSpec(name='age', doc='age of subject. No specific format enforced.',
-                                                    dtype='str', quantity='?'),
+                                                    dtype='text', required=False),
                                    NWBAttributeSpec(name='sex', quantity='?', dtype='text',
                                                     doc='Sex of subject. Options: "M": male, "F": female, "O": other, '
-                                                        '"U": unknown'),
-                                   NWBAttributeSpec(name='gender', dtype='text', quantity='?',
+                                                        '"U": unknown', required=True),
+                                   NWBAttributeSpec(name='gender', dtype='text', required=False,
                                                     doc='Gender of subject if different from sex.'),
                                    NWBAttributeSpec(name='species', doc='Species of subject', dtype='text',
                                                     quantity='?'),
-                                   NWBAttributeSpec(name='weight', quantity='?', dtype='text',
+                                   NWBAttributeSpec(name='weight', required=False, dtype='text',
                                                     doc='Weight at time of experiment, at time of surgery and at other '
                                                         'important times'),
-                                   NWBAttributeSpec(name='subject_id', quantity='?', dtype='text',
+                                   NWBAttributeSpec(name='subject_id', required=True, dtype='text',
                                                     doc='ID of animal/person used/participating in experiment (lab '
                                                         'convention)'),
-                                   NWBAttributeSpec(name='weight', quantity='?', dtype='text',
+                                   NWBAttributeSpec(name='weight', required=False, dtype='text',
                                                     doc='Weight at time of experiment, at time of surgery and at other '
                                                         'important times')])
 
@@ -76,4 +76,4 @@ load_namespaces(ns_path)
 
 Subject = get_class('Subject2', name)
 
-Subject(genotype='mouse1', species='mouse', )
+Subject(genotype='mouse1', species='mouse', sex='U', subject_id='007')

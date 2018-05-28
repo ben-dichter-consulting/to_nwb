@@ -1,4 +1,5 @@
 from pynwb.spec import NWBDatasetSpec, NWBNamespaceBuilder, NWBGroupSpec, NWBAttributeSpec
+from pynwb.form.spec import RefSpec
 
 name = 'subject2'
 ns_path = name + ".namespace.yaml"
@@ -23,7 +24,8 @@ surgery = NWBGroupSpec(neurodata_type_def='Surgery',
                        doc='relevant data for surgery',
                        quantity='?',
                        datasets=[
-                           NWBDatasetSpec(name='devices', doc='links to devices', dtype='RefSpec', quantity='?')
+                           NWBDatasetSpec(name='devices', doc='links to devices', dtype=RefSpec('Device', 'object'),
+                                          quantity='?')
                        ],
                        groups=[virus_injection],
                        attributes=[NWBAttributeSpec(name='date', doc='date in ISO 8601', dtype='text'),
@@ -36,9 +38,6 @@ subject = NWBGroupSpec(neurodata_type_def='Subject2',
                        name='Subject2',
                        doc='information about subject',
                        groups=[surgery],
-                       datasets=[
-                           NWBDatasetSpec,
-                       ],
                        attributes=[NWBAttributeSpec(name='genotype', dtype='text', doc='genotype', quantity='?'),
                                    NWBAttributeSpec(name='date_of_birth', dtype='text', doc='ISO 8601', quantity='?'),
                                    NWBAttributeSpec(name='age', doc='age of subject. No specific format enforced.',

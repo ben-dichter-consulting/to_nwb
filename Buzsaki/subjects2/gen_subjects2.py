@@ -1,38 +1,32 @@
 from pynwb.spec import NWBDatasetSpec, NWBNamespaceBuilder, NWBGroupSpec, NWBAttributeSpec
 from pynwb.form.spec import RefSpec
 
+import pendulum
+
 name = 'subject2'
 ns_path = name + ".namespace.yaml"
 ext_source = name + ".extensions.yaml"
 
 virus_injection = NWBGroupSpec(neurodata_type_def='VirusInjection',
-                               name='VirusInjection',
+                               name='virus_injection', quantity='?',
                                doc='notes about surgery that includes virus injection',
-                               datasets=[
-                                   NWBDatasetSpec(name='coordinates',
-                                                  doc='(AP, ML, DV) of virus injection',
-                                                  dtype='float',
-                                                  shape=(3,)),
-                                   NWBDatasetSpec(name='volume',
-                                                  doc='volume of injecting in microliters',
-                                                  dtype='float')
-                               ],
-                               attributes=[NWBAttributeSpec(name='virus_id', doc='id of virus', dtype='text')])
+                               datasets=[NWBDatasetSpec(name='coordinates', doc='(AP, ML, DV) of virus injection',
+                                                        dtype='float', shape=(3,))],
+                               attributes=[NWBAttributeSpec(name='virus_id', doc='id of virus', dtype='text'),
+                                           NWBAttributeSpec(name='volume', doc='volume of injecting in microliters',
+                                                            dtype='float')])
 
 surgery = NWBGroupSpec(neurodata_type_def='Surgery',
-                       name='Surgery',
-                       doc='relevant data for surgery',
-                       quantity='?',
-                       datasets=[
-                           NWBDatasetSpec(name='devices', doc='links to devices', dtype=RefSpec('Device', 'object'),
-                                          quantity='?')
-                       ],
+                       name='Surgery', doc='relevant data for surgery', quantity='?',
+                       datasets=[NWBDatasetSpec(name='devices', doc='links to devices', quantity='?',
+                                                dtype=RefSpec('Device', 'object'))],
                        groups=[virus_injection],
-                       attributes=[NWBAttributeSpec(name='date', doc='date in ISO 8601', dtype='text'),
-                                   NWBAttributeSpec(name='notes', doc='notes', dtype='text'),
-                                   NWBAttributeSpec(name='pharmacology', doc='pharmacology', dtype='text'),
-                                   NWBAttributeSpec(name='target_anatomy', doc='target anatomy', dtype='text')])
-
+                       attributes=[
+                           NWBAttributeSpec(name='date', doc='date in ISO 8601', dtype='text', required=False),
+                           NWBAttributeSpec(name='notes', doc='notes', dtype='text', required=False),
+                           NWBAttributeSpec(name='pharmacology', doc='pharmacology', dtype='text', required=False),
+                           NWBAttributeSpec(name='target_anatomy', doc='target anatomy', dtype='text', required=False)
+                       ])
 
 subject = NWBGroupSpec(neurodata_type_def='Subject2',
                        name='Subject2',
@@ -75,5 +69,17 @@ ext_source = name + '.extensions.yaml'
 load_namespaces(ns_path)
 
 Subject = get_class('Subject2', name)
+Surgery = get_class('Surgery', name)
+VirusInjection = get_class('VirusInjection', name)
 
-Subject(genotype='mouse1', species='mouse', sex='U', subject_id='007')
+date = pendulum.now().to_iso8601_string()
+
+Subject(genotype='mouse1', species='mouse', sex='U', subject_id='007',
+        surgery=Surgery(
+            date=date,
+            virus_injection=VirusInjection(
+                coordinates=[0.3, 0.2, 0.1],
+                virus_id='123',
+                volume=0.3
+            )
+        ))

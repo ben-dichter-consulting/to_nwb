@@ -1,0 +1,6 @@
+namespaces:
+- doc: ecog extensions
+  name: ecog
+  schema:
+  - namespace: core
+  - source: ecog.extensions.yaml

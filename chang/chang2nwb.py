@@ -32,9 +32,29 @@ def wav_path_key(path):
     return int(num[0]), int(num[1:])
 
 
+def get_subject(blockname):
+    return blockname[:blockname.find('_')]
+
+
+def add_cortical_surface(nwbfile, pial_files):
+    load_namespaces('ecog.namespace.yaml')
+    CorticalSurface = get_class('CorticalSurface', 'ecog')
+
+    names = []
+    for pial_file in pial_files:
+        matin = loadmat(pial_file)
+        tri = matin['cortex']['tri'][0][0]
+        vert = matin['cortex']['vert'][0][0]
+        name = pial_file[pial_file.find('Meshes')+7:-4]
+        names.append(name)
+        nwbfile.add_acquisition(CorticalSurface(faces=tri, vertices=vert,
+                                                name=name, source=pial_file))
+    return nwbfile, names
+
+
 def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
               session_description=None, identifier=None, use_anin4=False,
-              ecog_format='mat', **kwargs):
+              ecog_format='mat', external_anat=True, **kwargs):
     """
 
     Parameters
@@ -55,7 +75,10 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
     -------
 
     """
-    blockname = os.path.split(blockpath)[1]
+    manager = get_manager()
+
+    basepath, blockname = os.path.split(blockpath)
+    subject = get_subject(blockname)
     if identifier is None:
         identifier = blockname
 
@@ -204,21 +227,27 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
     if len(bad_time) > 0:
         nwbfile.add_raw_timeseries(bad_timepoints_ts)
 
-    # import surface data
-    load_namespaces('ecog.namespace.yaml')
-    CorticalSurface = get_class('CorticalSurface', 'ecog')
-
     pial_files = glob.glob(path.join(mesh_path, '*pial.mat'))
-    for pial_file in pial_files:
-        matin = loadmat(pial_file)
-        tri = matin['cortex']['tri'][0][0]
-        vert = matin['cortex']['vert'][0][0]
-        name = pial_file[pial_file.find('Meshes')+7:-4]
-        nwbfile.add_acquisition(CorticalSurface(faces=tri, vertices=vert,
-                                                name=name, source=pial_file))
+    if external_anat:
+        anat_fpath = path.join(basepath, subject + '_cortical_surface.nwbaux')
+        anat_nwbfile = NWBFile(source='',
+                               session_description='',
+                               identifier=subject + '_cortical_surface',
+                               session_start_time=datetime(1900, 1, 1))
+        anat_nwbfile, pial_names = add_cortical_surface(anat_nwbfile, pial_files)
+        with HDF5IO(anat_fpath, manager, 'w') as anat_io:
+            anat_io.write(anat_nwbfile)
 
-    # Export the NWB file
-    io = HDF5IO(outpath, get_manager(), mode='w')
+        anat_nwbfile = HDF5IO(anat_fpath, manager, 'r').read()
+        for pial_name in pial_names:
+            surface_objects = anat_nwbfile.get_acquisition(pial_name)
+            nwbfile.add_acquisition(surface_objects)
+
+    else:
+        nwbfile = add_cortical_surface(nwbfile, pial_files)
+
+        # Export the NWB file
+    io = HDF5IO(outpath, manager, mode='w')
     io.write(nwbfile)
     io.close()
 

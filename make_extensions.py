@@ -11,15 +11,14 @@ cat_cell_info = NWBGroupSpec(
     datasets=[
         NWBDatasetSpec(doc='global id for neuron',
                        shape=(None, 1),
-                       name='cell_index', dtype='int'),
-        NWBDatasetSpec(name='values',
-                       doc='list of unique values',
-                       attributes=[NWBAttributeSpec(
-                           name='indices',
-                           doc='indices into values for each gid in order',
-                           dtype='int',
-                           shape=(None,))],
-                       shape=(None, 1), dtype='text')],
+                       name='cell_index', dtype='int', required=False),
+        NWBDatasetSpec(name='indices',
+                       doc='list of indices for values',
+                       shape=(None, 1), dtype='int',
+                       attributes=[
+                           NWBAttributeSpec(name='values', dtype='text',
+                                            doc='values that the indices are indexing',
+                                            shape=(None, 1))])],
     neurodata_type_inc='NWBDataInterface')
 
 ns_builder = NWBNamespaceBuilder(name + ' extensions', name)

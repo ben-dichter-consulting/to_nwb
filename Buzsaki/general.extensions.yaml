@@ -1,0 +1,24 @@
+groups:
+- datasets:
+  - doc: global id for neuron
+    dtype: int
+    name: cell_index
+    shape:
+    - null
+    - 1
+  - attributes:
+    - doc: values that the indices are indexing
+      dtype: text
+      name: values
+      shape:
+      - null
+      - 1
+    doc: list of indices for values
+    dtype: int
+    name: indices
+    shape:
+    - null
+    - 1
+  doc: Categorical Cell Info
+  neurodata_type_def: CatCellInfo
+  neurodata_type_inc: NWBDataInterface

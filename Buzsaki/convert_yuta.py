@@ -148,38 +148,42 @@ print('done.')
 # lfp
 print('reading LFPs...', end='', flush=True)
 lfp_file = os.path.join(fpath, fname + '.lfp')
-all_channels = np.fromfile(lfp_file, dtype=np.int16).reshape(-1, 80)
+#all_channels = np.fromfile(lfp_file, dtype=np.int16).reshape(-1, 80)
+all_channels = np.random.randn(1000,100)
 all_channels_lfp = all_channels[:, all_shank_channels]
 print('done.')
 
 if WRITE_ALL_LFPS:
-    print('making ElectricalSeries objects for LFP...', end='', flush=True)
-    all_lfp = nwbfile.add_acquisition(
-        ElectricalSeries('all_lfp',
-                         'lfp signal for all shank electrodes',
-                         gzip(all_channels_lfp),
-                         all_table_region,
-                         conversion=np.nan,
-                         starting_time=0.0,
-                         rate=lfp_fs,
-                         resolution=np.nan))
-    all_ts.append(all_lfp)
-    print('done.')
+    data = gzip(all_channels_lfp)
+else:
+    data = gzip(all_channels_lfp[:100])
 
-
-lfp = nwbfile.add_acquisition(
-    ElectricalSeries('lfp',
-                     'signal used as the reference lfp',
-                     gzip(all_channels[:, lfp_channel]),
-                     lfp_table_region,
+print('making ElectricalSeries objects for LFP...', end='', flush=True)
+all_lfp = nwbfile.add_acquisition(
+    ElectricalSeries('all_lfp',
+                     'lfp signal for all shank electrodes',
+                     data,
+                     all_table_region,
                      conversion=np.nan,
                      starting_time=0.0,
                      rate=lfp_fs,
                      resolution=np.nan))
-all_ts.append(lfp)
+all_ts.append(all_lfp)
+print('done.')
 
-nwbfile.add_acquisition(lfp, )
 
+electrical_series = ElectricalSeries(
+            'reference lfp',
+            'signal used as the reference lfp',
+            gzip(all_channels[:, lfp_channel]),
+            lfp_table_region,
+            conversion=np.nan,
+            starting_time=0.0,
+            rate=lfp_fs,
+            resolution=np.nan)
+lfp = nwbfile.add_acquisition(LFP(source='source',
+                                  electrical_series=electrical_series))
+all_ts.append(electrical_series)
 
 # create epochs corresponding to experiments/environments for the mouse
 task_types = ['OpenFieldPosition_ExtraLarge', 'OpenFieldPosition_New_Curtain',
@@ -206,7 +210,8 @@ for label in task_types:
                                           conversion=np.nan,
                                           resolution=np.nan,
                                           timestamps=gzip(tt))
-    pos_obj = Position(source=source, spatial_series=spatial_series_object,
+    pos_obj = Position(source=source,
+                       spatial_series=spatial_series_object,
                        name=label + '_position')
 
     module_behavior.add_container(pos_obj)
@@ -258,7 +263,7 @@ u_cats, indices = np.unique(celltype_names, return_inverse=True)
 
 cci_obj = CatCellInfo(name='CellTypes',
                       source='DG_all_6__UnitFeatureSummary_add.mat',
-                      values=u_cats, indices=indices,
+                      values=list(u_cats), indices=list(indices),
                       cell_index=list(range(len(indices))))
 
 ut_obj = ns.build_unit_times(fpath, fname)
@@ -272,7 +277,7 @@ module_spikes.add_container(cci_obj)
 out_fname = fname + '.nwb'
 print('writing NWB file...', end='', flush=True)
 with NWBHDF5IO(out_fname, mode='w') as io:
-    io.write(nwbfile, cache_spec=False)
+    io.write(nwbfile)
 print('done.')
 
 print('testing read...', end='', flush=True)

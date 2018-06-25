@@ -27,13 +27,23 @@ Convert ECoG to NWB
 """
 
 
-def wav_path_key(path):
-    num = path[path.find('Wav')+3:path.rfind('.')]
-    return int(num[0]), int(num[1:])
-
-
 def get_subject(blockname):
     return blockname[:blockname.find('_')]
+
+
+def gen_htk_num(i):
+    """Input 0-indexed channel number, output htk filename.
+    Parameters
+    ----------
+    i: int
+        zero-indexed channel number
+
+    Returns
+    -------
+    str
+
+    """
+    return str(i//64+1) + str(np.mod(i, 64)+1)
 
 
 def add_cortical_surface(nwbfile, pial_files):
@@ -53,21 +63,33 @@ def add_cortical_surface(nwbfile, pial_files):
 
 
 def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
-              session_description=None, identifier=None, use_anin4=False,
-              ecog_format='mat', external_anat=True, **kwargs):
+              session_description=None, identifier=None, anin4=False,
+              ecog_format='htk', external_anat=True, include_pitch=False,
+              speakers=True, mic=True, **kwargs):
     """
 
     Parameters
     ----------
     blockpath: str
     outpath: None | str
-        if None, the blockname is used and is saved in the blockpath
+        if None, output = [blockpath]/[blockname].nwb
     session_start_time: datetime.datetime
         default: datetime(1900, 1, 1)
     session_description: str
         default: blockname
     identifier: str
         default: blockname
+    anin4: False | str
+        Whether or not to convert ANIN4. ANIN4 is used as an extra channel for
+        things like button presses, and is usually unused. If a string is
+        supplied, that is used as the name of the timeseries.
+    ecog_format: str
+        ({'htk'}, 'mat')
+    external_anat: bool (optional)
+        True: (default) save the cortical surface data in a separate file and use an external link
+        False: save the cortical surface data in the file
+    include_pitch: bool
+        add pitch data. Default: False
     kwargs: dict
         passed to pynwb.NWBFile
 
@@ -88,22 +110,18 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
     if outpath is None:
         outpath = blockpath + '.nwb'
 
-    # Establish the assumptions about file paths
+    # file paths
     mic_file = path.join(blockpath, 'Analog', 'ANIN1.htk')
     L_speaker_file = path.join(blockpath, 'Analog', 'ANIN2.htk')
     R_speaker_file = path.join(blockpath, 'Analog', 'ANIN3.htk')
     bad_time_file = path.join(blockpath, 'Artifacts', 'badTimeSegments.mat')
-    elec_metadata_file = path.join(blockpath, 'elecs', 'TDT_elecs_all.mat')
-    electrode_data_path = path.join(blockpath, 'RawHTK')
+    lfp_path = path.join(blockpath, 'RawHTK')
     ecog400_path = path.join(blockpath, 'ecog400', 'ecog.mat')
-    mesh_path = path.join(blockpath, 'Meshes')
+    elec_metadata_file = path.join(basepath, 'imaging', 'elecs', 'TDT_elecs_all.mat')
+    mesh_path = path.join(blockpath, 'imaging', 'Meshes')
 
-    if use_anin4:
+    if anin4:
         aux_file = path.join(blockpath, 'Analog', 'ANIN4.htk')
-
-    # Get the paths to all HTK files and sort them
-    htk_paths = sorted(glob.glob(path.join(electrode_data_path, '*.htk')),
-                       key=wav_path_key)
 
     # Get metadata for all electrodes
     elecs_metadata = sio.loadmat(elec_metadata_file)
@@ -165,9 +183,11 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
 
         # Read electrophysiology data from HTK files and add them to NWB file
         if ecog_format == 'htk':
-            htk = readHTK(htk_paths[0])
-            data = np.concatenate([readHTK(htk_paths[i], scale_s_rate=True)['data']
-                                   for i in device_data.index.values]).T
+            data = []
+            for i in device_data.index.values:
+                htk = readHTK(path.join(lfp_path, 'Wav' + gen_htk_num(0) + '.htk'))
+                data.append(htk['data'])
+            data = np.concatenate(data)
             rate = htk['sampling_rate']
 
         elif ecog_format == 'mat':
@@ -184,48 +204,50 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
                                     conversion=0.001)
         nwbfile.add_acquisition(ephys_ts)
 
-    # Add microphone recording from room
-    mic_htk = readHTK(mic_file, scale_s_rate=True)
-    nwbfile.add_acquisition(TimeSeries('ANIN1', 'microphone in room',
-                                       mic_htk['data'][0],
-                                       'audio unit', starting_time=0.0,
-                                       rate=mic_htk['sampling_rate'],
-                                       description="audio recording from "
-                                                   "microphone in room"))
+    if mic:
+        # Add microphone recording from room
+        mic_htk = readHTK(mic_file, scale_s_rate=True)
+        nwbfile.add_acquisition(TimeSeries('microphone', 'microphone in room',
+                                           mic_htk['data'][0],
+                                           'audio unit', starting_time=0.0,
+                                           rate=mic_htk['sampling_rate'],
+                                           description="audio recording from "
+                                                       "microphone in room"))
+    if speakers:
+        # Add audio stimulus 1
+        stim_htk = readHTK(L_speaker_file, scale_s_rate=True)
+        nwbfile.add_stimulus(TimeSeries('speaker 1', 'the first stimulus source',
+                                        stim_htk['data'][0], 'audio unit',
+                                        starting_time=0.0,
+                                        rate=stim_htk['sampling_rate'],
+                                        description="audio stimulus 1"))
 
-    # Add audio stimulus 1
-    stim_htk = readHTK(L_speaker_file, scale_s_rate=True)
-    nwbfile.add_stimulus(TimeSeries('ANIN2', 'the first stimulus source',
-                                    stim_htk['data'][0], 'audio unit',
-                                    starting_time=0.0,
-                                    rate=stim_htk['sampling_rate'],
-                                    description="audio stimulus 1"))
+        # Add audio stimulus 2
+        stim_htk = readHTK(R_speaker_file, scale_s_rate=True)
+        nwbfile.add_stimulus(TimeSeries('speaker 2', "audio stimulus 2", stim_htk['data'][0],
+                                        'audio unit', starting_time=0.0,
+                                        rate=stim_htk['sampling_rate'],
+                                        description='the second stimulus source'))
 
-    # Add audio stimulus 2
-    stim_htk = readHTK(R_speaker_file, scale_s_rate=True)
-    nwbfile.add_stimulus(TimeSeries('ANIN3', "audio stimulus 2", stim_htk['data'][0],
-                                    'audio unit', starting_time=0.0,
-                                    rate=stim_htk['sampling_rate'],
-                                    description='the second stimulus source'))
-
-    if use_anin4:
+    if anin4:
         aux_htk = readHTK(aux_file, scale_s_rate=True)
-        nwbfile.add_acquisition(TimeSeries('ANIN4', 'aux analog',
+        nwbfile.add_acquisition(TimeSeries(anin4, 'aux analog',
                                            aux_htk['data'][0],
                                            'aux unit', starting_time=0.0,
                                            rate=aux_htk['sampling_rate'],
                                            description="aux analog recording"))
 
     # Add bad time segments
-    bad_time = sio.loadmat(bad_time_file)['badTimeSegments']
-    ts_name = 'badTimeSegments'
-    ts_source = bad_time_file      # this should be something more descriptive
-    ts_desc = 'bad time segments'  # this should be something more descriptive
-    bad_timepoints_ts = IntervalSeries(ts_name, ts_source, description=ts_desc)
-    [bad_timepoints_ts.add_interval(start, stop) for start, stop in bad_time]
+    if os.path.exists(bad_time_file):
+        bad_time = sio.loadmat(bad_time_file)['badTimeSegments']
+        ts_name = 'badTimeSegments'
+        ts_source = bad_time_file      # this should be something more descriptive
+        ts_desc = 'bad time segments'  # this should be something more descriptive
+        bad_timepoints_ts = IntervalSeries(ts_name, ts_source, description=ts_desc)
+        [bad_timepoints_ts.add_interval(start, stop) for start, stop in bad_time]
 
-    if len(bad_time) > 0:
-        nwbfile.add_raw_timeseries(bad_timepoints_ts)
+        if len(bad_time) > 0:
+            nwbfile.add_raw_timeseries(bad_timepoints_ts)
 
     pial_files = glob.glob(path.join(mesh_path, '*pial.mat'))
     if external_anat:
@@ -246,10 +268,16 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
     else:
         nwbfile = add_cortical_surface(nwbfile, pial_files)
 
-        # Export the NWB file
-    io = HDF5IO(outpath, manager, mode='w')
-    io.write(nwbfile)
-    io.close()
+    if include_pitch:
+        pass  # add pitch here
+
+    # Export the NWB file
+    with HDF5IO(outpath, manager, mode='w') as io:
+        io.write(nwbfile, cache_spec=True)
+
+    # read check
+    with HDF5IO(outpath, manager, mode='r') as io:
+        io.read()
 
 
 def main():
@@ -278,8 +306,8 @@ def main():
     chang2nwb(**args)
 
 
-chang2nwb('/Users/bendichter/Desktop/Chang/data/EC61/EC61_B32',
-          '/Users/bendichter/Desktop/Chang/data/EC61/EC61_B32.nwb')
+chang2nwb('/Users/bendichter/Desktop/Chang/data/EC125/EC125_B22',
+          anin4='button', speakers=False, mic=False)
 
 #if __name__ == '__main__':
 #    main()

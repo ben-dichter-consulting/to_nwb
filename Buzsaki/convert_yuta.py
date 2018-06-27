@@ -1,4 +1,5 @@
 import os
+from functools import partialmethod
 
 from datetime import datetime
 import numpy as np
@@ -13,7 +14,10 @@ from pynwb.ecephys import ElectricalSeries, LFP
 
 from utils import find_discontinuities
 import neuroscope as ns
-from general import CatCellInfo, gzip
+from general import CatCellInfo
+
+from pynwb.form.backends.hdf5 import H5DataIO as gzip
+gzip.__init__ = partialmethod(gzip.__init__, compression='gzip')
 
 WRITE_ALL_LFPS = False
 
@@ -263,8 +267,7 @@ u_cats, indices = np.unique(celltype_names, return_inverse=True)
 
 cci_obj = CatCellInfo(name='CellTypes',
                       source='DG_all_6__UnitFeatureSummary_add.mat',
-                      values=list(u_cats), indices=list(indices),
-                      cell_index=list(range(len(indices))))
+                      values=list(u_cats), indices=list(indices))
 
 ut_obj = ns.build_unit_times(fpath, fname)
 
@@ -273,6 +276,20 @@ module_spikes = nwbfile.create_processing_module('spikes', source=source,
 
 module_spikes.add_container(ut_obj)
 module_spikes.add_container(cci_obj)
+
+trialdata_path = os.path.join(fpath, fname + '__EightMazeRun.mat')
+trials_data = loadmat(trialdata_path)['EightMazeRun']
+
+trialdatainfo_path = os.path.join(fpath, fname + '__EightMazeRunInfo.mat')
+trialdatainfo = [x[0] for x in loadmat(trialdatainfo_path)['EightMazeRunInfo'][0]]
+
+
+features = trialdatainfo[:7]
+[nwbfile.add_trial_column(x, 'description') for x in features]
+
+for trial_data in trials_data:
+    nwbfile.add_trial({lab: dat for lab, dat in zip(features, trial_data[:7])})
+
 
 out_fname = fname + '.nwb'
 print('writing NWB file...', end='', flush=True)

@@ -3,6 +3,7 @@ groups:
   - doc: global id for neuron
     dtype: int
     name: cell_index
+    quantity: '?'
     shape:
     - null
     - 1

@@ -285,6 +285,7 @@ trialdatainfo = [x[0] for x in loadmat(trialdatainfo_path)['EightMazeRunInfo'][0
 
 
 features = trialdatainfo[:7]
+features[:2] = 'start', 'end'
 [nwbfile.add_trial_column(x, 'description') for x in features]
 
 for trial_data in trials_data:

@@ -1,15 +1,8 @@
 from collections import Iterable
 
-from functools import partialmethod
-
 from pynwb import load_namespaces, register_class
 from pynwb.core import NWBDataInterface
-
 from pynwb.form.utils import docval, popargs
-
-
-from pynwb.form.backends.hdf5 import H5DataIO as gzip
-gzip.__init__ = partialmethod(gzip.__init__, compress=True)
 
 # load custom classes
 name = 'general'
@@ -31,7 +24,7 @@ class CatCellInfo(NWBDataInterface):
     def __init__(self, **kwargs):
         name, source, values, indices, cell_index = popargs(
             'name', 'source', 'values', 'indices', 'cell_index', kwargs)
-        super(CatCellInfo, self).__init__(name, source, **kwargs)
+        super(CatCellInfo, self).__init__(source, name, **kwargs)
 
         self.values = values
         self.indices = indices

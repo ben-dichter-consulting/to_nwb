@@ -179,7 +179,7 @@ print('done.')
 
 electrical_series = ElectricalSeries(
             'reference lfp',
-            'signal used as the reference lfp',HDF
+            'signal used as the reference lfp',
             gzip(all_channels[:, lfp_channel]),
             lfp_table_region,
             conversion=np.nan,

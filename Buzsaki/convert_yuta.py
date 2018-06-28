@@ -19,7 +19,7 @@ from general import CatCellInfo
 from pynwb.form.backends.hdf5 import H5DataIO as gzip
 gzip.__init__ = partialmethod(gzip.__init__, compression='gzip')
 
-WRITE_ALL_LFPS = False
+WRITE_ALL_LFPS = True
 
 
 fpath = '/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/YutaMouse41-150903'
@@ -152,8 +152,8 @@ print('done.')
 # lfp
 print('reading LFPs...', end='', flush=True)
 lfp_file = os.path.join(fpath, fname + '.lfp')
-#all_channels = np.fromfile(lfp_file, dtype=np.int16).reshape(-1, 80)
-all_channels = np.random.randn(1000,100)
+all_channels = np.fromfile(lfp_file, dtype=np.int16).reshape(-1, 80)
+# all_channels = np.random.randn(1000,100)  # use for dev testing for speed
 all_channels_lfp = all_channels[:, all_shank_channels]
 print('done.')
 
@@ -163,29 +163,31 @@ else:
     data = gzip(all_channels_lfp[:100])
 
 print('making ElectricalSeries objects for LFP...', end='', flush=True)
-all_lfp = nwbfile.add_acquisition(
-    ElectricalSeries('all_lfp',
-                     'lfp signal for all shank electrodes',
-                     data,
-                     all_table_region,
-                     conversion=np.nan,
-                     starting_time=0.0,
-                     rate=lfp_fs,
-                     resolution=np.nan))
-all_ts.append(all_lfp)
+all_lfp_electrical_series = ElectricalSeries(
+        'all_lfp',
+        'lfp signal for all shank electrodes',
+        data,
+        all_table_region,
+        conversion=np.nan,
+        starting_time=0.0,
+        rate=lfp_fs,
+        resolution=np.nan)
+all_ts.append(all_lfp_electrical_series)
+all_lfp = nwbfile.add_acquisition(LFP(name='all_lfp', source='source',
+                                      electrical_series=all_lfp_electrical_series))
 print('done.')
-
 
 electrical_series = ElectricalSeries(
             'reference lfp',
-            'signal used as the reference lfp',
+            'signal used as the reference lfp',HDF
             gzip(all_channels[:, lfp_channel]),
             lfp_table_region,
             conversion=np.nan,
             starting_time=0.0,
             rate=lfp_fs,
             resolution=np.nan)
-lfp = nwbfile.add_acquisition(LFP(source='source',
+
+lfp = nwbfile.add_acquisition(LFP(source='source', name='reference_lfp',
                                   electrical_series=electrical_series))
 all_ts.append(electrical_series)
 
@@ -292,7 +294,7 @@ for trial_data in trials_data:
     nwbfile.add_trial({lab: dat for lab, dat in zip(features, trial_data[:7])})
 
 
-out_fname = fname + '.nwb'
+out_fname = '/Users/bendichter/Desktop/Buzsaki/data/' + fname + '.nwb'
 print('writing NWB file...', end='', flush=True)
 with NWBHDF5IO(out_fname, mode='w') as io:
     io.write(nwbfile)

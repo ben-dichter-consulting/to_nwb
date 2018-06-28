@@ -34,7 +34,7 @@ df = pd.read_excel(subject_fpath)
 
 subject_data = {}
 for key in ['genotype', 'DOB', 'implantation', 'Probe']:
-    subject_data[key] = df.ix[df.ix[:, 0] == key, 1].values[0]
+    subject_data[key] = df.iloc[np.where(df.iloc[:, 0] == key)[0], 1].values[0]
 
 age = session_start_time - subject_data['DOB']
 
@@ -152,8 +152,8 @@ print('done.')
 # lfp
 print('reading LFPs...', end='', flush=True)
 lfp_file = os.path.join(fpath, fname + '.lfp')
-all_channels = np.fromfile(lfp_file, dtype=np.int16).reshape(-1, 80)
-# all_channels = np.random.randn(1000,100)  # use for dev testing for speed
+#all_channels = np.fromfile(lfp_file, dtype=np.int16).reshape(-1, 80)
+all_channels = np.random.randn(1000, 100)  # use for dev testing for speed
 all_channels_lfp = all_channels[:, all_shank_channels]
 print('done.')
 
@@ -194,7 +194,7 @@ all_ts.append(electrical_series)
 # create epochs corresponding to experiments/environments for the mouse
 task_types = ['OpenFieldPosition_ExtraLarge', 'OpenFieldPosition_New_Curtain',
               'OpenFieldPosition_New', 'OpenFieldPosition_Old_Curtain',
-              'OpenFieldPosition_Old', 'OpenFieldPosition_Oldlast']
+              'OpenFieldPosition_Old', 'OpenFieldPosition_Oldlast', 'EightMazePosition']
 
 module_behavior = nwbfile.create_processing_module(name='behavior',
                                                    source=source,
@@ -294,10 +294,11 @@ for trial_data in trials_data:
     nwbfile.add_trial({lab: dat for lab, dat in zip(features, trial_data[:7])})
 
 
-out_fname = '/Users/bendichter/Desktop/Buzsaki/data/' + fname + '.nwb'
+out_fname = '/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/test.nwb'
+#out_fname = '/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/' + fname + '.nwb'
 print('writing NWB file...', end='', flush=True)
 with NWBHDF5IO(out_fname, mode='w') as io:
-    io.write(nwbfile)
+    io.write(nwbfile, cache_spec=True)
 print('done.')
 
 print('testing read...', end='', flush=True)

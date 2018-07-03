@@ -2,12 +2,14 @@
 
 # In[174]:
 
+from neuroscope import get_channel_groups
+
 import sys
 from functools import partial
-from pynwb import NWBFile
+from pynwb import NWBFile, NWBHDF5IO
 from pynwb.behavior import SpatialSeries, Position, BehavioralTimeSeries, BehavioralEvents
 from pynwb.ecephys import ElectricalSeries, LFP
-from pynwb.ophys import OpticalChannel, TwoPhotonSeries, Fluorescence, DfOverF, ROITable
+from pynwb.ophys import OpticalChannel, TwoPhotonSeries, Fluorescence, DfOverF, ROITable, ImageSegmentation
 from pynwb.image import ImageSeries
 from pynwb.form.backends.hdf5.h5_utils import H5DataIO
 
@@ -42,27 +44,6 @@ from lab.classes.dbclasses import dbExperiment
 
 
 # TODO throughout, replace source fields with appropriate info
-
-# Two of Ben's Neuroscope helper functions
-def get_channel_groups(xml_filepath):
-    # From https://github.com/bendichter/to_nwb.git
-
-    soup = load_xml(xml_filepath)
-
-    channel_groups = [[int(channel.string)
-                       for channel in group.find_all('channel')]
-                      for group in soup.channelGroups.find_all('group')]
-
-    return channel_groups
-
-
-def load_xml(filepath):
-    # From https://github.com/bendichter/to_nwb.git
-    with open(filepath, 'r') as xml_file:
-        contents = xml_file.read()
-        soup = BeautifulSoup(contents, 'xml')
-    return soup
-
 
 def get_position(region):
 
@@ -113,7 +94,6 @@ def add_LFP(nwbfile, expt, count=1, region='CA1'):
 
     # TODO add conversion field for moving to V
     # TODO figure out how to link lfp data (zipping seems kludgey)
-    # TODO even i wanted to zip, how to do this? What does buzcode's general.gzip output?
     lfp_elec_series = ElectricalSeries(name='LFP',
                                        source='SOURCE',
                                        data=gzip(lfp_signal),
@@ -227,7 +207,7 @@ def add_behavior(nwbfile, expt):
     laps = BehavioralEvents(source='SOURCE', name='Lap Starts')
     # TODO probably not best to have laps as data and timestamps here
     laps.create_timeseries(source='SOURCE', name='Lap Starts', data=bd['lap'],
-                           timestamps=bd['laps'], description='Frames at which laps began')
+                           timestamps=bd['lap'], description='Frames at which laps began')
 
     behavior_module.add_container(laps)
 
@@ -236,80 +216,59 @@ def add_behavior(nwbfile, expt):
 
 def get_pixel_mask(roi):
 
-    pmask = []
-    for polygon in roi.polygons:
-
-        coords = np.array(polygon.exterior.coords[:])
-
-        for coord in coords:
-
-            pmask.append(tuple(list(coord)[::-1] + [1.]))
-
-    return pmask
+    image_mask = get_image_mask(roi)
+    inds = zip(*np.where(image_mask))
+    out = [list(ind) + [1.] for ind in inds]
+    return out
 
 
 def get_image_mask(roi):
-
-    imask = []
-    for plane, mask in enumerate(roi.mask):
-
-        nz = mask.nonzero()
-
-        for y, x in zip(nz[0], nz[1]):
-
-            imask.append(tuple(x, y, plane, 1.))
-
-    return imask
+    return np.dstack([mask.toarray().T for mask in roi.mask])
 
 
-def add_rois(nwbfile, module, expt, labels):
+def add_rois(nwbfile, module, expt):
 
-    for label in labels:
+    img_seg = ImageSegmentation(source='SOURCE')
+    module.add_data_interface(img_seg)
+    ps = img_seg.create_plane_segmentation(source='SOURCE', description='ROIs',
+                                           imaging_plane=nwbfile.get_imaging_plane('Imaging Data'),
+                                           name='Plane Segmentation')
 
-        rois = expt.rois(label=label)
-        roitable = ROITable(name='{} rois'.format(label))
-        for roi in rois:
-            roitable.add_row(roi.label, get_pixel_mask(roi), get_image_mask(roi))
+    rois = expt.rois()
+    for roi in rois:
+        ps.add_roi(roi.label, get_pixel_mask(roi), get_image_mask(roi))
 
-        img_seg = ImageSegmentation(source='SOURCE')
-        module.add_data_interface(img_seg)
-        img_seg.create_plane_segmentation(source='SOURCE', description='ROIs',
-                                          imaging_plane=nwbfile.get_imaging_plane('Imaging Data'),
-                                          name='{} Plane Segmentation'.format(label),
-                                          rois=roitable)
+    return ps
 
 
         # TODO finish this!
 
 
-def add_signals(module, expt, labels):
+def add_signals(module, expt, rt_region):
 
     fs = 1 / expt.frame_period()
 
-    for label in labels:
+    fluor = Fluorescence(source='SOURCE')
+    sigs = expt.imagingData(dFOverF=None)
+    fluor.create_roi_response_series(source='SOURCE', name='Fluorescence',
+                                     data=sigs.squeeze(), rate=fs, unit='NA',
+                                     rois=rt_region, starting_time=0.0)
 
-        rois = expt.rois(label=label)
-
-        fluor = Fluorescence(source='SOURCE', name='{} Fluorescence'.format(label))
-        sigs = expt.imagingData(dFOverF=None, label=label)
-        fluor.create_roi_response_series(source='SOURCE', name='{} Fluorescence'.format(label),
-                                         data=sigs.squeeze(), rate=fs, unit='NA', rois=rois)
-
-        module.add_data_interface(fluor)
+    module.add_data_interface(fluor)
 
 
-def add_dff(module, expt, labels):
+def add_dff(module, expt, rt_region):
 
     fs = 1 / expt.frame_period()
 
-    for label in labels:
+    fluor = DfOverF(source='SOURCE', name='DFF')
+    sigs = expt.imagingData(dFOverF=None)
+    fluor.create_roi_response_series(source='SOURCE', name='DFF',
+                                     starting_time=0.0,
+                                     data=sigs.squeeze(), rate=fs, unit='NA',
+                                     rois=rt_region)
 
-        fluor = DfOverF(source='SOURCE', name='{} DFF'.format(label))
-        sigs = expt.imagingData(dFOverF=None, label=label)
-        fluor.create_roi_response_series(source='SOURCE', name='{} DFF'.format(label),
-                                         data=sigs.squeeze(), rate=fs, unit='NA', rois=[])
-
-        module.add_data_interface(fluor)
+    module.add_data_interface(fluor)
 
 
 def main(argv):
@@ -342,11 +301,20 @@ def main(argv):
     imaging_module = nwbfile.create_processing_module(name='im_analysis', source='SOURCE',
                                                       description='Data relevant to imaging')
 
-    add_rois(nwbfile, imaging_module, expt)
+    ps = add_rois(nwbfile, imaging_module, expt)
 
-    add_signals(imaging_module, expt)
+    rt_region = ps.create_roi_table_region('all ROIs', region=list(range(len(expt.rois()))))
 
-    add_dff(imaging_module, expt)
+    add_signals(imaging_module, expt, rt_region)
+
+    add_dff(imaging_module, expt, rt_region)
+
+    fout = '/Users/bendichter/Desktop/Losonczy/from_sebi/TSeries-05042017-001/TSeries-05042017-001.nwb'
+    with NWBHDF5IO(fout) as io:
+        io.write(nwbfile)
+
+    with NWBHDF5IO(fout) as io:
+        io.read()
 
     # still to do:
     # Motion Corrections (just displacements?)
@@ -354,7 +322,8 @@ def main(argv):
     # Transients, Spikes
     # Place Fields
     # SWRs
-    # Actualy save to disk
+    # Actually save to disk
+
 
 if __name__ == "__main__":
     main(sys.argv[1:])

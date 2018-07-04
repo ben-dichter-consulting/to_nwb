@@ -99,7 +99,7 @@ def get_position_data(fpath, fname, fs=1250./32.,
     return df
 
 
-def get_clusters_single_shank(fpath, fname, shankn):
+def get_clusters_single_shank(fpath, fname, shankn, fs=20000):
     """Read the spike time data for a from the .res and .clu files for a single
     shank. Automatically removes noise and multi-unit.
 
@@ -128,6 +128,7 @@ def get_clusters_single_shank(fpath, fname, shankn):
     noise_inds = ((id_df == 0) | (id_df == 1)).values.ravel()
     df = id_df.join(timing_df)
     df = df.loc[np.logical_not(noise_inds)].reset_index(drop=True)
+    df['time'] = df['time'] / fs
 
     df['id'] -= 2
 

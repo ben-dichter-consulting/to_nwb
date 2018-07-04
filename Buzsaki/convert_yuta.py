@@ -151,7 +151,7 @@ print('done.')
 
 # lfp
 print('reading LFPs...', end='', flush=True)
-lfp_file = os.path.join(fpath, fname + '.lfp')
+lfp_file = os.path.join(fpath, fname + '.eeg')
 #all_channels = np.fromfile(lfp_file, dtype=np.int16).reshape(-1, 80)
 all_channels = np.random.randn(1000, 100)  # use for dev testing for speed
 all_channels_lfp = all_channels[:, all_shank_channels]
@@ -298,7 +298,7 @@ out_fname = '/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/test.nwb'
 #out_fname = '/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/' + fname + '.nwb'
 print('writing NWB file...', end='', flush=True)
 with NWBHDF5IO(out_fname, mode='w') as io:
-    io.write(nwbfile, cache_spec=True)
+    io.write(nwbfile)
 print('done.')
 
 print('testing read...', end='', flush=True)

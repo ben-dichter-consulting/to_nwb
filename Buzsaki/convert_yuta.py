@@ -178,7 +178,7 @@ all_lfp = nwbfile.add_acquisition(LFP(name='all_lfp', source='source',
 print('done.')
 
 electrical_series = ElectricalSeries(
-            'reference lfp',
+            'reference_lfp',
             'signal used as the reference lfp',
             gzip(all_channels[:, lfp_channel]),
             lfp_table_region,
@@ -209,7 +209,7 @@ for label in task_types:
 
     exp_times = find_discontinuities(tt)
 
-    spatial_series_object = SpatialSeries(name=label + ' spatial_series',
+    spatial_series_object = SpatialSeries(name=label + '_spatial_series',
                                           source='position sensor0',
                                           data=gzip(pos_data),
                                           reference_frame='unknown',
@@ -273,11 +273,11 @@ cci_obj = CatCellInfo(name='CellTypes',
 
 ut_obj = ns.build_unit_times(fpath, fname)
 
-module_spikes = nwbfile.create_processing_module('spikes', source=source,
+module_cellular = nwbfile.create_processing_module('cellular', source=source,
                                                  description=source)
 
-module_spikes.add_container(ut_obj)
-module_spikes.add_container(cci_obj)
+module_cellular.add_container(ut_obj)
+module_cellular.add_container(cci_obj)
 
 trialdata_path = os.path.join(fpath, fname + '__EightMazeRun.mat')
 trials_data = loadmat(trialdata_path)['EightMazeRun']
@@ -293,6 +293,18 @@ features[:2] = 'start', 'end'
 for trial_data in trials_data:
     nwbfile.add_trial({lab: dat for lab, dat in zip(features, trial_data[:7])})
 
+mono_syn_fpath = os.path.join(fpath, fname+'-MonoSynConvClick.mat')
+
+matin = loadmat(mono_syn_fpath)
+exc = matin['FinalExcMonoSynID']
+inh = matin['FinalInhMonoSynID']
+
+exc_obj = CatCellInfo('excitatory_connections', 'YutaMouse41-150903-MonoSynConvClick.mat',
+                      values=[], cell_index=exc[:, 0] - 1, indices=exc[:, 1] - 1)
+module_cellular.add_container(exc_obj)
+inh_obj = CatCellInfo('inhibitory_connections', 'YutaMouse41-150903-MonoSynConvClick.mat',
+                      values=[], cell_index=inh[:, 0] - 1, indices=inh[:, 1] - 1)
+module_cellular.add_container(inh_obj)
 
 out_fname = '/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/test.nwb'
 #out_fname = '/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/' + fname + '.nwb'

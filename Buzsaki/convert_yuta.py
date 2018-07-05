@@ -8,9 +8,13 @@ from dateutil.parser import parse as dateparse
 import pandas as pd
 
 from pynwb import NWBFile, NWBHDF5IO
-from pynwb.file import Subject
+from pynwb.file import Subject, DynamicTable
 from pynwb.behavior import SpatialSeries, Position
 from pynwb.ecephys import ElectricalSeries, LFP
+from pynwb.form.data_utils import DataChunkIterator
+from pynwb.form.backends.hdf5.h5_utils import H5DataIO
+from tqdm import tqdm
+
 
 from utils import find_discontinuities
 import neuroscope as ns
@@ -153,14 +157,19 @@ print('done.')
 print('reading LFPs...', end='', flush=True)
 lfp_file = os.path.join(fpath, fname + '.eeg')
 all_channels = np.fromfile(lfp_file, dtype=np.int16).reshape(-1, 80)
+
+data = DataChunkIterator(tqdm(all_channels, desc='writting lfp data'),
+                         buffer_size=int(lfp_fs*3600))
+data = H5DataIO(data, compression='gzip')
+
 #all_channels = np.random.randn(1000, 100)  # use for dev testing for speed
 all_channels_lfp = all_channels[:, all_shank_channels]
 print('done.')
 
-if WRITE_ALL_LFPS:
-    data = gzip(all_channels_lfp)
-else:
-    data = gzip(all_channels_lfp[:100])
+#if WRITE_ALL_LFPS:
+#    data = gzip(all_channels_lfp)
+#else:
+#    data = gzip(all_channels_lfp[:100])
 
 print('making ElectricalSeries objects for LFP...', end='', flush=True)
 all_lfp_electrical_series = ElectricalSeries(
@@ -306,10 +315,8 @@ inh_obj = CatCellInfo('inhibitory_connections', 'YutaMouse41-150903-MonoSynConvC
                       values=[], cell_index=inh[:, 0] - 1, indices=inh[:, 1] - 1)
 module_cellular.add_container(inh_obj)
 
-
-from pynwb.file import DynamicTable
-
-matin = loadmat('/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/YutaMouse41-150903/YutaMouse41-150903--StatePeriod.mat')['StatePeriod']
+sleep_state_fpath = os.path.join(fpath, fname+'--StatePeriod.mat')
+matin = loadmat(sleep_state_fpath)['StatePeriod']
 
 table = DynamicTable(name='states', source='source', description='sleep states of animal')
 table.add_column(name='start', description='start time')

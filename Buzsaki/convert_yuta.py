@@ -152,8 +152,8 @@ print('done.')
 # lfp
 print('reading LFPs...', end='', flush=True)
 lfp_file = os.path.join(fpath, fname + '.eeg')
-#all_channels = np.fromfile(lfp_file, dtype=np.int16).reshape(-1, 80)
-all_channels = np.random.randn(1000, 100)  # use for dev testing for speed
+all_channels = np.fromfile(lfp_file, dtype=np.int16).reshape(-1, 80)
+#all_channels = np.random.randn(1000, 100)  # use for dev testing for speed
 all_channels_lfp = all_channels[:, all_shank_channels]
 print('done.')
 
@@ -306,8 +306,24 @@ inh_obj = CatCellInfo('inhibitory_connections', 'YutaMouse41-150903-MonoSynConvC
                       values=[], cell_index=inh[:, 0] - 1, indices=inh[:, 1] - 1)
 module_cellular.add_container(inh_obj)
 
-out_fname = '/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/test.nwb'
-#out_fname = '/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/' + fname + '.nwb'
+
+from pynwb.file import DynamicTable
+
+matin = loadmat('/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/YutaMouse41-150903/YutaMouse41-150903--StatePeriod.mat')['StatePeriod']
+
+table = DynamicTable(name='states', source='source', description='sleep states of animal')
+table.add_column(name='start', description='start time')
+table.add_column(name='end', description='end time')
+table.add_column(name='state', description='sleep state')
+
+for name in matin.dtype.names:
+    for row in matin[name][0][0]:
+        table.add_row({'start': row[0], 'end': row[1], 'state': name})
+
+module_behavior.add_container(table)
+
+#out_fname = '/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/test.nwb'
+out_fname = '/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/' + fname + '.nwb'
 print('writing NWB file...', end='', flush=True)
 with NWBHDF5IO(out_fname, mode='w') as io:
     io.write(nwbfile)

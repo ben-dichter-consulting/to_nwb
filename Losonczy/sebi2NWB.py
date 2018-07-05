@@ -2,40 +2,20 @@
 
 # In[174]:
 
-from neuroscope import get_channel_groups
-
-import sys
-from functools import partial
-from pynwb import NWBFile, NWBHDF5IO
-from pynwb.behavior import SpatialSeries, Position, BehavioralTimeSeries, BehavioralEvents
-from pynwb.ecephys import ElectricalSeries, LFP
-from pynwb.ophys import OpticalChannel, TwoPhotonSeries, Fluorescence, DfOverF, ROITable, ImageSegmentation
-from pynwb.image import ImageSeries
-from pynwb.form.backends.hdf5.h5_utils import H5DataIO
-
-from bs4 import BeautifulSoup
-
-from datetime import datetime
 
 import os
+import sys
+from datetime import datetime
+
 import h5py
-
 import numpy as np
+from pynwb import NWBFile, NWBHDF5IO
+from pynwb.behavior import Position, BehavioralTimeSeries, BehavioralEvents
+from pynwb.ecephys import ElectricalSeries, LFP
+from pynwb.form.backends.hdf5.h5_utils import H5DataIO
+from pynwb.ophys import OpticalChannel, TwoPhotonSeries, Fluorescence, DfOverF, ImageSegmentation
 
-from pynwb.form.backends.hdf5 import H5DataIO as gzip
-
-from functools import partial
-
-
-class partialmethod(partial):
-    def __get__(self, instance, owner):
-        if instance is None:
-            return self
-        return partial(self.func, instance,
-                       *(self.args or ()), **(self.keywords or {}))
-
-
-gzip.__init__ = partialmethod(gzip.__init__, compression='gzip')
+from neuroscope import get_channel_groups
 
 # Losonczy Imports
 from lab.misc import lfp_helpers as lfph
@@ -96,7 +76,8 @@ def add_LFP(nwbfile, expt, count=1, region='CA1'):
     # TODO figure out how to link lfp data (zipping seems kludgey)
     lfp_elec_series = ElectricalSeries(name='LFP',
                                        source='SOURCE',
-                                       data=gzip(lfp_signal),
+                                       data=H5DataIO(lfp_signal,
+                                                     compression='gzip'),
                                        electrodes=lfp_table_region,
                                        conversion=np.nan,
                                        starting_time=0.0,
@@ -310,7 +291,7 @@ def main(argv):
     add_dff(imaging_module, expt, rt_region)
 
     fout = '/Users/bendichter/Desktop/Losonczy/from_sebi/TSeries-05042017-001/TSeries-05042017-001.nwb'
-    with NWBHDF5IO(fout) as io:
+    with NWBHDF5IO(fout, 'w') as io:
         io.write(nwbfile)
 
     with NWBHDF5IO(fout) as io:

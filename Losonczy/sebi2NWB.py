@@ -47,7 +47,7 @@ def add_LFP(nwbfile, expt, count=1, region='CA1'):
     lfp_fs = eeg_dict['sampeFreq']
     nchannels = eeg_dict['nChannels']
 
-    lfp_signal = eeg_dict['EEG'][:, lfp_channels]
+    lfp_signal = eeg_dict['EEG'][lfp_channels].T
 
     device_name = 'LFP_Device_{}'.format(count)
     device = nwbfile.create_device(device_name, source='SOURCE')
@@ -69,7 +69,7 @@ def add_LFP(nwbfile, expt, count=1, region='CA1'):
                               description='lfp electrode {}'.format(channel),
                               group=electrode_group)
 
-    lfp_table_region = nwbfile.create_electrode_table_region(range(nchannels),
+    lfp_table_region = nwbfile.create_electrode_table_region(list(range(len(lfp_channels))),
                                                              'lfp electrodes')
 
     # TODO add conversion field for moving to V
@@ -123,27 +123,35 @@ def add_imaging(nwbfile, expt, z_spacing=25., device='2P Microscope', location='
     imaging_plane = nwbfile.create_imaging_plane(
         name='Imaging Data', source='SOURCE',
         optical_channel=optical_channels,
-        description='Imaging Data indexed as t,z,y,x,c. SIMA-readable.',
+        description='imaging data for both channels',
         device=device, excitation_lambda=excitation_lambda,
         imaging_rate=str(1 / expt.frame_period()), indicator=indicator,
         location=location,
         conversion=1.0,  # Should actually be elem_size_um
         unit='um')
 
-    f = h5py.File(h5_path, 'r')
-    imaging_data = f['imaging']
+    with h5py.File(h5_path, 'r') as f:
+        all_imaging_data = f['imaging'][:10]
+        channel_names = f['imaging'].attrs['channel_names']
 
-    # TODO parse env file to add power and pmt gain?
-    image_series = TwoPhotonSeries(name='2p_Series',
-                                   source='SOURCE',
-                                   dimension=expt.frame_shape()[:-1],
-                                   format='h5',
-                                   data=H5DataIO(data=imaging_data, link_data=True),
-                                   imaging_plane=imaging_plane,
-                                   rate=1 / expt.frame_period(),
-                                   starting_time=0.)
+    # t,z,y,x,c -> t,x,y,z,c
+    all_imaging_data = np.swapaxes(all_imaging_data, 1, 3)
 
-    nwbfile.add_acquisition(image_series)
+    # t,x,y,z,c -> c,t,(x,y,z)
+    all_imaging_data = np.rollaxis(all_imaging_data, 4)
+
+    for channel_name, imaging_data in zip(channel_names, all_imaging_data):
+        # TODO parse env file to add power and pmt gain?
+        image_series = TwoPhotonSeries(name='2p_Series_' + channel_name,
+                                       source='SOURCE',
+                                       dimension=expt.frame_shape()[:-1],
+                                       data=H5DataIO(data=imaging_data, compression='gzip'),
+                                       imaging_plane=imaging_plane,
+                                       rate=1 / expt.frame_period(),
+                                       starting_time=0.,
+                                       description=channel_name)
+
+        nwbfile.add_acquisition(image_series)
 
 
 # Load in Behavior Data, store position, licking, and water reward delivery times
@@ -279,18 +287,22 @@ def main(argv):
 
     add_behavior(nwbfile, expt)
 
+
     imaging_module = nwbfile.create_processing_module(name='im_analysis', source='SOURCE',
                                                       description='Data relevant to imaging')
 
     ps = add_rois(nwbfile, imaging_module, expt)
-
+    """
     rt_region = ps.create_roi_table_region('all ROIs', region=list(range(len(expt.rois()))))
 
     add_signals(imaging_module, expt, rt_region)
 
     add_dff(imaging_module, expt, rt_region)
 
-    fout = '/Users/bendichter/Desktop/Losonczy/from_sebi/TSeries-05042017-001/TSeries-05042017-001.nwb'
+    """
+    fout = '/Users/bendichter/Desktop/Losonczy/from_sebi/TSeries-05042017-001.nwb'
+    print('writing...')
+
     with NWBHDF5IO(fout, 'w') as io:
         io.write(nwbfile)
 

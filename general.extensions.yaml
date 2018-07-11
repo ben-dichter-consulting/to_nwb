@@ -20,6 +20,11 @@ groups:
     shape:
     - null
     - 1
+  attributes:
+  - doc: values that the indices are indexing
+    name: help
+    value: 'a cat cell info'
+    dtype: text
   doc: Categorical Cell Info
   neurodata_type_def: CatCellInfo
   neurodata_type_inc: NWBDataInterface

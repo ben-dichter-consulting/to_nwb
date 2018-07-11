@@ -30,7 +30,3 @@ class CatCellInfo(NWBDataInterface):
         self.indices = indices
         if cell_index is not None:
             self.cell_index = cell_index
-
-
-
-

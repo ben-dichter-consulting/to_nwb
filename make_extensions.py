@@ -11,7 +11,7 @@ cat_cell_info = NWBGroupSpec(
     datasets=[
         NWBDatasetSpec(doc='global id for neuron',
                        shape=(None, 1),
-                       name='cell_index', dtype='int', required=False),
+                       name='cell_index', dtype='int', quantity='?'),
         NWBDatasetSpec(name='indices',
                        doc='list of indices for values',
                        shape=(None, 1), dtype='int',

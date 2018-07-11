@@ -10,7 +10,7 @@ import pandas as pd
 from pynwb import NWBFile, NWBHDF5IO
 from pynwb.file import Subject, DynamicTable
 from pynwb.behavior import SpatialSeries, Position
-from pynwb.ecephys import ElectricalSeries, LFP
+from pynwb.ecephys import ElectricalSeries, LFP, FilteredEphys
 from pynwb.form.data_utils import DataChunkIterator
 from pynwb.form.backends.hdf5.h5_utils import H5DataIO
 from tqdm import tqdm
@@ -19,6 +19,9 @@ from tqdm import tqdm
 from utils import find_discontinuities
 import neuroscope as ns
 from general import CatCellInfo
+
+from ephys_analysis.analysis import filter_lfp, hilbert_lfp
+
 
 from pynwb.form.backends.hdf5 import H5DataIO as gzip
 gzip.__init__ = partialmethod(gzip.__init__, compression='gzip')
@@ -155,21 +158,20 @@ print('done.')
 
 # lfp
 print('reading LFPs...', end='', flush=True)
-lfp_file = os.path.join(fpath, fname + '.eeg')
-all_channels = np.fromfile(lfp_file, dtype=np.int16).reshape(-1, 80)
 
-data = DataChunkIterator(tqdm(all_channels, desc='writting lfp data'),
-                         buffer_size=int(lfp_fs*3600))
-data = H5DataIO(data, compression='gzip')
+if True:
+    lfp_file = os.path.join(fpath, fname + '.eeg')
+    all_channels = np.fromfile(lfp_file, dtype=np.int16).reshape(-1, 80)
+    all_channels_lfp = all_channels[:, all_shank_channels]
 
-#all_channels = np.random.randn(1000, 100)  # use for dev testing for speed
-all_channels_lfp = all_channels[:, all_shank_channels]
+    data = DataChunkIterator(tqdm(all_channels, desc='writing lfp data'),
+                             buffer_size=int(lfp_fs*3600))
+    data = H5DataIO(data, compression='gzip')
+else:
+    all_channels = np.random.randn(1000, 100)  # use for dev testing for speed
+    data = all_channels
+
 print('done.')
-
-#if WRITE_ALL_LFPS:
-#    data = gzip(all_channels_lfp)
-#else:
-#    data = gzip(all_channels_lfp[:100])
 
 print('making ElectricalSeries objects for LFP...', end='', flush=True)
 all_lfp_electrical_series = ElectricalSeries(
@@ -329,15 +331,41 @@ for name in matin.dtype.names:
 
 module_behavior.add_container(table)
 
-#out_fname = '/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/test.nwb'
-out_fname = '/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/' + fname + '.nwb'
+
+# compute filtered LFP
+
+"""
+module_lfp = nwbfile.create_processing_module(
+    'lfp', source=source, description=source)
+
+#filt_ephys = FilteredEphys(source='source', name='name')
+for passband in ('theta', 'gamma'):
+    lfp_fft = filter_lfp(all_channels[:, lfp_channel], np.array(lfp_fs), passband=passband)
+    lfp_phase, _ = hilbert_lfp(lfp_fft, use_octave=True)
+
+    electrical_series = ElectricalSeries(name=passband + '_phase',
+                                         source='ephys_analysis',
+                                         data=lfp_phase,
+                                         rate=lfp_fs,
+                                         electrodes=lfp_table_region)
+    #filt_ephys.add_electrical_series(electrical_series)
+    module_lfp.add_data_interface(electrical_series)
+
+#module_lfp.add_container(filt_ephys)
+
+"""
+
+
+
+out_fname = '/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/test.nwb'
+#out_fname = '/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/' + fname + '.nwb'
 print('writing NWB file...', end='', flush=True)
 with NWBHDF5IO(out_fname, mode='w') as io:
-    io.write(nwbfile)
+    io.write(nwbfile, cache_spec=True)
 print('done.')
 
 print('testing read...', end='', flush=True)
 # test read
-with NWBHDF5IO(out_fname, mode='r') as io:
+with NWBHDF5IO(out_fname, mode='r', load_namespaces=True) as io:
     io.read()
 print('done.')

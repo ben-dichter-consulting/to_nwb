@@ -12,15 +12,14 @@ from h5py import File
 from scipy.io import loadmat
 
 from pynwb import NWBFile, TimeSeries, get_manager, load_namespaces,\
-    get_class
+    get_class, NWBHDF5IO
 from pynwb.misc import IntervalSeries
 from pynwb.ecephys import ElectricalSeries
-from pynwb.form.backends.hdf5 import HDF5IO
+from pynwb.form.backends.hdf5 import H5DataIO
 
 from chang.HTK import readHTK
 from chang.utils import remove_duplicates
 
-import pdb
 
 """
 Convert ECoG to NWB
@@ -64,8 +63,8 @@ def add_cortical_surface(nwbfile, pial_files):
 
 def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
               session_description=None, identifier=None, anin4=False,
-              ecog_format='htk', external_anat=True, include_pitch=False,
-              speakers=True, mic=True, **kwargs):
+              ecog_format='mat', external_anat=True, include_pitch=False,
+              speakers=True, mic=True, mini=False, **kwargs):
     """
 
     Parameters
@@ -90,6 +89,8 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
         False: save the cortical surface data in the file
     include_pitch: bool
         add pitch data. Default: False
+    speakers: bool
+    mic: bool
     kwargs: dict
         passed to pynwb.NWBFile
 
@@ -117,7 +118,8 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
     bad_time_file = path.join(blockpath, 'Artifacts', 'badTimeSegments.mat')
     lfp_path = path.join(blockpath, 'RawHTK')
     ecog400_path = path.join(blockpath, 'ecog400', 'ecog.mat')
-    elec_metadata_file = path.join(basepath, 'imaging', 'elecs', 'TDT_elecs_all.mat')
+    elec_metadata_file = path.join(basepath, 'imaging', 'elecs',
+                                   'TDT_elecs_all.mat')
     mesh_path = path.join(blockpath, 'imaging', 'Meshes')
 
     if anin4:
@@ -130,12 +132,18 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
     elec_grp_loc = [str(x[3][0]) if len(x[3]) else "" for x in anatomy]
     elec_grp_type = [str(x[2][0]) for x in anatomy]
     elec_grp_long_name = [str(x[1][0]) for x in anatomy]
-    elec_grp_device = [x[:x.find('Electrode')] for x in elec_grp_long_name]
+    if 'Electrode' in elec_grp_long_name[0]:
+        elec_grp_device = [x[:x.find('Electrode')] for x in elec_grp_long_name]
+    else:
+        elec_grp_device = [''.join(filter(lambda y: not str.isdigit(y), x))
+                           for x in elec_grp_long_name]
+
     elec_grp_short_name = [str(x[0][0]) for x in anatomy]
     anatomy = {'loc': elec_grp_loc, 'type': elec_grp_type,
                'long_name': elec_grp_long_name, 'short_name': elec_grp_short_name,
                'device': elec_grp_device}
     elec_grp_df = pd.DataFrame(anatomy)
+    valid_elecs = elec_grp_df[np.logical_not(elec_grp_df['short_name'] == 'NaN')].index
 
     n = len(elec_grp_long_name)
     if n < len(elec_grp_xyz_coord):
@@ -153,7 +161,10 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
                       institution='University of California, San Francisco',
                       lab='Chang Lab', **kwargs)
 
-    for device_name in remove_duplicates(elec_grp_device):
+    elec_counter = 0
+    devices = remove_duplicates(elec_grp_device)
+    devices = [x for x in devices if not x == 'Na']
+    for device_name in devices:
         device_data = elec_grp_df[elec_grp_df['device'] == device_name]
         # Create devices
         device = nwbfile.create_device(device_name, 'source')
@@ -177,32 +188,36 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
                                   filtering='none',
                                   description=elec_data['short_name'],
                                   group=electrode_group)
+            elec_counter += 1
 
-        electrode_table_region = nwbfile.create_electrode_table_region(
-            list(range(n)), 'all electrodes on device')
+    all_elecs = nwbfile.create_electrode_table_region(
+        list(range(elec_counter)), 'all electrodes on brain')
 
-        # Read electrophysiology data from HTK files and add them to NWB file
-        if ecog_format == 'htk':
-            data = []
-            for i in device_data.index.values:
-                htk = readHTK(path.join(lfp_path, 'Wav' + gen_htk_num(0) + '.htk'))
-                data.append(htk['data'])
-            data = np.concatenate(data)
-            rate = htk['sampling_rate']
+    # Read electrophysiology data from HTK files and add them to NWB file
+    if ecog_format == 'htk':
+        data = []
+        for i in valid_elecs:
+            htk = readHTK(path.join(lfp_path, 'Wav' + gen_htk_num(i) + '.htk'),
+                          scale_s_rate=True)
+            data.append(htk['data'])
+        data = np.concatenate(data).T
+        rate = htk['sampling_rate']
 
-        elif ecog_format == 'mat':
-            with File(ecog400_path, 'r') as f:
-                data = f['ecogDS']['data'][:]
-                rate = f['ecogDS']['sampFreq'][:].ravel()[0]
+    elif ecog_format == 'mat':
+        with File(ecog400_path, 'r') as f:
+            data = f['ecogDS']['data'][:]
+            rate = f['ecogDS']['sampFreq'][:].ravel()[0]
 
-        ts_desc = "data generated from electrode group %s, sampled at %0.6f " \
-                  "Hz" % (device_name, rate)
+    ts_desc = "all Wav data"
 
-        ephys_ts = ElectricalSeries(device_name, "source", data,
-                                    electrode_table_region, starting_time=0.0,
-                                    rate=rate, description=ts_desc,
-                                    conversion=0.001)
-        nwbfile.add_acquisition(ephys_ts)
+    if mini:
+        data = data[:2000]
+
+    ephys_ts = ElectricalSeries('lfp', "source", H5DataIO(data, compression='gzip'),
+                                all_elecs, starting_time=0.0,
+                                rate=rate, description=ts_desc,
+                                conversion=0.001)
+    nwbfile.add_acquisition(ephys_ts)
 
     if mic:
         # Add microphone recording from room
@@ -255,12 +270,12 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
         anat_nwbfile = NWBFile(source='',
                                session_description='',
                                identifier=subject + '_cortical_surface',
-                               session_start_time=datetime(1900, 1, 1))
+                               session_start_time=datetime(1900, 1, 1))  # placeholder since this argument is required
         anat_nwbfile, pial_names = add_cortical_surface(anat_nwbfile, pial_files)
-        with HDF5IO(anat_fpath, manager, 'w') as anat_io:
+        with NWBHDF5IO(anat_fpath, manager=manager, mode='w') as anat_io:
             anat_io.write(anat_nwbfile)
 
-        anat_nwbfile = HDF5IO(anat_fpath, manager, 'r').read()
+        anat_nwbfile = NWBHDF5IO(anat_fpath, manager=manager, mode='r').read()
         for pial_name in pial_names:
             surface_objects = anat_nwbfile.get_acquisition(pial_name)
             nwbfile.add_acquisition(surface_objects)
@@ -272,11 +287,11 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
         pass  # add pitch here
 
     # Export the NWB file
-    with HDF5IO(outpath, manager, mode='w') as io:
-        io.write(nwbfile, cache_spec=True)
+    with NWBHDF5IO(outpath, manager=manager, mode='w') as io:
+        io.write(nwbfile)
 
     # read check
-    with HDF5IO(outpath, manager, mode='r') as io:
+    with NWBHDF5IO(outpath, manager=manager, mode='r') as io:
         io.read()
 
 
@@ -306,8 +321,7 @@ def main():
     chang2nwb(**args)
 
 
-chang2nwb('/Users/bendichter/Desktop/Chang/data/EC125/EC125_B22',
-          anin4='button', speakers=False, mic=False)
+chang2nwb('/Users/bendichter/Desktop/Chang/data/EC169/EC169_B7')
 
 #if __name__ == '__main__':
 #    main()

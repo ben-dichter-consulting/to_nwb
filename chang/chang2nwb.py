@@ -61,6 +61,18 @@ def add_cortical_surface(nwbfile, pial_files):
     return nwbfile, names
 
 
+def readhtks(htkpath, elecs):
+    data = []
+    for i in elecs:
+        htk = readHTK(path.join(htkpath, 'Wav' + gen_htk_num(i) + '.htk'),
+                      scale_s_rate=True)
+        data.append(htk['data'])
+    data = np.concatenate(data).T
+    rate = htk['sampling_rate']
+
+    return data, rate
+
+
 def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
               session_description=None, identifier=None, anin4=False,
               ecog_format='mat', external_anat=True, include_pitch=False,
@@ -132,6 +144,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
     elec_grp_loc = [str(x[3][0]) if len(x[3]) else "" for x in anatomy]
     elec_grp_type = [str(x[2][0]) for x in anatomy]
     elec_grp_long_name = [str(x[1][0]) for x in anatomy]
+
     if 'Electrode' in elec_grp_long_name[0]:
         elec_grp_device = [x[:x.find('Electrode')] for x in elec_grp_long_name]
     else:
@@ -139,11 +152,17 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
                            for x in elec_grp_long_name]
 
     elec_grp_short_name = [str(x[0][0]) for x in anatomy]
+
+    lfp_elecs = [i for i, label in enumerate(elec_grp_short_name)
+                 if label not in ('RT', 'EKG', 'NaN')]
+
+    ekg_elecs = [i for i, label in enumerate(elec_grp_short_name)
+                 if label == 'EKG']
+
     anatomy = {'loc': elec_grp_loc, 'type': elec_grp_type,
                'long_name': elec_grp_long_name, 'short_name': elec_grp_short_name,
                'device': elec_grp_device}
     elec_grp_df = pd.DataFrame(anatomy)
-    valid_elecs = elec_grp_df[np.logical_not(elec_grp_df['short_name'] == 'NaN')].index
 
     n = len(elec_grp_long_name)
     if n < len(elec_grp_xyz_coord):
@@ -163,7 +182,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
 
     elec_counter = 0
     devices = remove_duplicates(elec_grp_device)
-    devices = [x for x in devices if not x == 'Na']
+    devices = [x for x in devices if x not in ('NaN', 'Right', 'EKG')]
     for device_name in devices:
         device_data = elec_grp_df[elec_grp_df['device'] == device_name]
         # Create devices
@@ -195,29 +214,32 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
 
     # Read electrophysiology data from HTK files and add them to NWB file
     if ecog_format == 'htk':
-        data = []
-        for i in valid_elecs:
-            htk = readHTK(path.join(lfp_path, 'Wav' + gen_htk_num(i) + '.htk'),
-                          scale_s_rate=True)
-            data.append(htk['data'])
-        data = np.concatenate(data).T
-        rate = htk['sampling_rate']
+        data, rate = readhtks(lfp_path, lfp_elecs)
+        if ekg_elecs:
+            ekg_data, _ = readhtks(lfp_path, ekg_elecs)
 
     elif ecog_format == 'mat':
         with File(ecog400_path, 'r') as f:
-            data = f['ecogDS']['data'][:]
+            data = f['ecogDS']['data'][:, lfp_elecs]
             rate = f['ecogDS']['sampFreq'][:].ravel()[0]
+
+            if ekg_elecs:
+                ekg_data = f['ecogDS']['data'][:, ekg_elecs]
 
     ts_desc = "all Wav data"
 
     if mini:
         data = data[:2000]
 
-    ephys_ts = ElectricalSeries('lfp', "source", H5DataIO(data, compression='gzip'),
-                                all_elecs, starting_time=0.0,
-                                rate=rate, description=ts_desc,
-                                conversion=0.001)
-    nwbfile.add_acquisition(ephys_ts)
+    lfp_ts = ElectricalSeries('LFP', "source", H5DataIO(data, compression='gzip'),
+                              all_elecs, rate=rate, description=ts_desc,
+                              conversion=0.001)
+    nwbfile.add_acquisition(lfp_ts)
+
+    ekg_ts = TimeSeries('EKG', 'source', H5DataIO(ekg_data, compression='gzip'),
+                        rate=rate, unit='V', conversion=.001,
+                        description='electrotorticography')
+    nwbfile.add_acquisition(ekg_ts)
 
     if mic:
         # Add microphone recording from room

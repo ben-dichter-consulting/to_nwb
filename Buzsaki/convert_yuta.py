@@ -7,7 +7,7 @@ from scipy.io import loadmat
 from dateutil.parser import parse as dateparse
 import pandas as pd
 
-from pynwb import NWBFile, NWBHDF5IO
+from pynwb import NWBFile, NWBHDF5IO, TimeSeries
 from pynwb.file import Subject, DynamicTable
 from pynwb.behavior import SpatialSeries, Position
 from pynwb.ecephys import ElectricalSeries, LFP, FilteredEphys
@@ -159,7 +159,7 @@ print('done.')
 # lfp
 print('reading LFPs...', end='', flush=True)
 
-if True:
+if False:
     lfp_file = os.path.join(fpath, fname + '.eeg')
     all_channels = np.fromfile(lfp_file, dtype=np.int16).reshape(-1, 80)
     all_channels_lfp = all_channels[:, all_shank_channels]
@@ -331,41 +331,33 @@ for name in matin.dtype.names:
 
 module_behavior.add_container(table)
 
-
 # compute filtered LFP
-
-"""
 module_lfp = nwbfile.create_processing_module(
-    'lfp', source=source, description=source)
+    'lfp_mod', source=source, description=source)
 
-#filt_ephys = FilteredEphys(source='source', name='name')
+filt_ephys = FilteredEphys(source='source', name='name')
 for passband in ('theta', 'gamma'):
     lfp_fft = filter_lfp(all_channels[:, lfp_channel], np.array(lfp_fs), passband=passband)
-    lfp_phase, _ = hilbert_lfp(lfp_fft, use_octave=True)
+    lfp_phase, _ = hilbert_lfp(lfp_fft)
 
     electrical_series = ElectricalSeries(name=passband + '_phase',
                                          source='ephys_analysis',
                                          data=lfp_phase,
                                          rate=lfp_fs,
+                                         unit='radians',
                                          electrodes=lfp_table_region)
-    #filt_ephys.add_electrical_series(electrical_series)
-    module_lfp.add_data_interface(electrical_series)
+    filt_ephys.add_electrical_series(electrical_series)
 
-#module_lfp.add_container(filt_ephys)
+module_lfp.add_container(filt_ephys)
 
-"""
-
-
-
-out_fname = '/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/test.nwb'
-#out_fname = '/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/' + fname + '.nwb'
+out_fname = '/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/' + fname + '.nwb'
 print('writing NWB file...', end='', flush=True)
 with NWBHDF5IO(out_fname, mode='w') as io:
-    io.write(nwbfile, cache_spec=True)
+    io.write(nwbfile)
 print('done.')
 
 print('testing read...', end='', flush=True)
 # test read
-with NWBHDF5IO(out_fname, mode='r', load_namespaces=True) as io:
+with NWBHDF5IO(out_fname, mode='r') as io:
     io.read()
 print('done.')

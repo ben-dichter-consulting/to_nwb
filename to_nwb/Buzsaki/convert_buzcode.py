@@ -1,4 +1,5 @@
 import os
+from functools import partialmethod
 
 from pathlib import Path
 from datetime import datetime
@@ -12,19 +13,23 @@ from pynwb.file import Subject
 from pynwb.behavior import SpatialSeries, Position
 from pynwb.ecephys import ElectricalSeries
 
-import neuroscope as ns
-from general import CatCellInfo, gzip
+from pynwb.form.backends.hdf5 import H5DataIO as gzip
+gzip.__init__ = partialmethod(gzip.__init__, compression='gzip')
+
+from to_nwb import neuroscope as ns
+
+#from general import CatCellInfo, gzip
 
 WRITE_ALL_LFPS = False
 
 # get sessionInfo
 
-fpath = 'C:\\Users\\Sam\\Documents\\source_data\\crcns_hc-3\\ec013.157\\ec013.157'
+fpath = '/Users/bendichter/dev/buzcode/exampleDataStructs/fbasename'
 
 fpath_base, fname = os.path.split(fpath)
 
 session_info_matin = loadmat(
-    os.path.join(fpath_base, fname + '.sessionInfo.mat'),
+    '/Users/bendichter/dev/buzcode/exampleDataStructs/20170505_396um_0um_merge.sessionInfo.mat',
     struct_as_record=True)
 date_text = session_info_matin['sessionInfo']['Date'][0][0][0]
 
@@ -32,7 +37,9 @@ date_text = session_info_matin['sessionInfo']['Date'][0][0][0]
 animal_info_matin = loadmat(
     os.path.join(fpath_base, fname + '.animalMetaData.mat'),
     struct_as_record=True)
-animal_info = {key: animal_info_matin[key][0][0][0] for key in animal_info_matin.keys()}
+
+keys = ('ID', 'strain', 'species', 'surgeryDate')
+animal_info = {key: animal_info_matin['animal'][key][0][0][0] for key in keys}
 
 
 session_description = 'mouse in open exploration and theta maze'
@@ -42,14 +49,13 @@ lab = 'Buzsaki'
 
 session_start_time = dateparse(date_text, yearfirst=True)
 
-if type(animal_info['DOB']) is not str:
-    age = session_start_time - animal_info['DOB']
-else:
-    age = 0
 
-subject = Subject(subject_id=animal_info['subject_id'],
-                  age=str(age), genotype=animal_info['genotype'],
+subject = Subject(subject_id=animal_info['ID'],
+                  strain=animal_info['strain'],
                   species=animal_info['species'], source='source')
+
+if 'DOB' in animal_info and type(animal_info['DOB']) is not str:
+    subject.age = str(session_start_time - animal_info['DOB'])
 
 source = fname
 nwbfile = NWBFile(source, session_description, identifier,

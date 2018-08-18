@@ -1,6 +1,6 @@
 addpath(genpath(pwd));
 
-registry=generateCore('schema/core/nwb.namespace.yaml');
+generateCore('schema/core/nwb.namespace.yaml');
 
 %% file
 
@@ -49,7 +49,7 @@ ss = types.SpatialSeries('source',{'position sensor1'},...
 file.acquisition.position_sensor_1 = ss;
 
 %% load LFP
-lfp_filepath = fullfile(fpath, [fname, '.lfp']);
+lfp_filepath = fullfile(fpath, [fname, '.eeg']);
 lfp_file = fopen(lfp_filepath, 'r');
 lfp_data = fread(lfp_file,'int16=>int16'); % takes 45 seconds 
 lfp_data = reshape(lfp_data,[],sessionInfo.nChannels);

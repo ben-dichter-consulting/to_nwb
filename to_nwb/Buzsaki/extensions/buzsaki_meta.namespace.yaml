@@ -1,0 +1,6 @@
+namespaces:
+- doc: buzsaki_meta extensions
+  name: buzsaki_meta
+  schema:
+  - namespace: core
+  - source: buzsaki_meta.extensions.yaml

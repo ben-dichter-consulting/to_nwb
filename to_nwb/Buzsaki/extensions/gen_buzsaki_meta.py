@@ -25,7 +25,7 @@ virus_injection = NWBGroupSpec(
 surgery = NWBGroupSpec(
     neurodata_type_def='Surgery', doc='information about a specific surgery', quantity='+',
     neurodata_type_inc='NWBDataInterface',
-    datasets=[NWBDatasetSpec(name='devices', quantity='?', doc='links to implanted/explanted devices',
+    datasets=[NWBDatasetSpec(name='devices', quantity='*', doc='links to implanted/explanted devices',
                              dtype=RefSpec('Device', 'object'))],
     groups=[virus_injection],
     attributes=[
@@ -154,7 +154,7 @@ def obj2docval(spec):
 
     for group in spec.groups:
         arg_spec = {'name': group.name, 'type': group.neurodata_type_def, 'doc': group.doc}
-        if group.quantity == '?':
+        if group.quantity in ('?', '*'):
             arg_spec['default'] = None
 
         args_spec.append(arg_spec)

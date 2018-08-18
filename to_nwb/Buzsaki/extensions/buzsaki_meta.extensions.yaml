@@ -1,0 +1,220 @@
+groups:
+- attributes:
+  - doc: ID of subject (lab convention)
+    dtype: text
+    name: subject_id
+  - doc: 'Sex of subject. Options: "M": male, "F": female, "O": other, "U": unknown'
+    dtype: text
+    name: sex
+    required: false
+  - doc: Species of subject
+    dtype: text
+    name: species
+    required: false
+  - doc: strain of animal
+    dtype: text
+    name: strain
+    required: false
+  - doc: genetic line of animal
+    dtype: text
+    name: genotype
+    required: false
+  - doc: in ISO 8601 format
+    dtype: text
+    name: date_of_birth
+    required: false
+  - doc: in ISO 8601 format
+    dtype: text
+    name: date_of_death
+    required: false
+  - doc: age of subject. No specific format enforced.
+    dtype: text
+    name: age
+    required: false
+  - doc: Gender of subject if different from sex.
+    dtype: text
+    name: gender
+    required: false
+  - doc: Earmark of subject
+    dtype: text
+    name: earmark
+    required: false
+  - doc: Weight at time of experiment, at time of surgery and at other important times
+    dtype: text
+    name: weight
+    required: false
+  doc: information about subject
+  groups:
+  - doc: relevant data for surgeries
+    groups:
+    - attributes:
+      - doc: datetime in ISO 8601
+        dtype: text
+        name: start_datetime
+        required: false
+      - doc: datetime in ISO 8601
+        dtype: text
+        name: end_datetime
+        required: false
+      - doc: Weight at time of experiment, at time of surgery and at other important
+          times
+        dtype: text
+        name: weight
+        required: false
+      - doc: notes and complications
+        dtype: text
+        name: notes
+        required: false
+      - doc: anesthesia
+        dtype: text
+        name: anesthesia
+        required: false
+      - doc: analgesics
+        dtype: text
+        name: analgesics
+        required: false
+      - doc: antibiotics
+        dtype: text
+        name: antibiotics
+        required: false
+      - doc: target anatomy
+        dtype: text
+        name: target_anatomy
+        required: false
+      - doc: place where the surgery took place
+        dtype: text
+        name: room
+        required: false
+      - doc: '"chronic" or "acute"'
+        dtype: text
+        name: surgery_type
+        required: false
+      datasets:
+      - doc: links to implanted/explanted devices
+        dtype:
+          reftype: object
+          target_type: Device
+        name: devices
+        quantity: '?'
+      doc: information about a specific surgery
+      groups:
+      - attributes:
+        - doc: type of virus
+          dtype: text
+          name: virus
+        - doc: volume of injecting in nL
+          dtype: float
+          name: volume
+        - doc: rate of injection (nL/s)
+          dtype: float
+          name: rate
+          required: false
+        - doc: scheme of injection
+          dtype: text
+          name: scheme
+          required: false
+        datasets:
+        - doc: (AP, ML, DV) of virus injection
+          dtype: float
+          name: coordinates
+          shape:
+          - 3
+        doc: notes about surgery that includes virus injection
+        neurodata_type_def: VirusInjection
+        neurodata_type_inc: NWBDataInterface
+        quantity: '*'
+      neurodata_type_def: Surgery
+      neurodata_type_inc: NWBDataInterface
+      quantity: +
+    name: surgeries
+    neurodata_type_def: Surgeries
+    quantity: '?'
+  - attributes:
+    - doc: filename of histology images
+      dtype: text
+      name: file_name
+    - doc: filename extension
+      dtype: text
+      name: file_name_ext
+    - doc: histology imaging technique (e.g. widefield, confocal, etc.)
+      dtype: text
+      name: imaging_technique
+    - doc: '[Coronal, Sagital, Transverse, Other]'
+      dtype: text
+      name: slice_plane
+      required: false
+    - doc: thickness of slice (um)
+      dtype: float
+      name: slice_thickness
+      required: false
+    - doc: Axis orthogal to SlicePlane (mm)
+      dtype: float
+      name: location_along_axis
+      required: false
+    - doc: Allen Institute acronym
+      dtype: text
+      name: brain_region_target
+      required: false
+    - doc: stainings
+      dtype: text
+      name: stainings
+      required: false
+    - doc: wavelength of light source in nm
+      dtype: float
+      name: light_source
+      required: false
+    - doc: scale of image (pixels/100um)
+      dtype: float
+      name: image_scale
+      required: false
+    - doc: size of image scale bar (um)
+      dtype: float
+      name: scale_bar
+      required: false
+    - doc: '[Z-stacked, Stiched]'
+      dtype: text
+      name: post_processing
+      required: false
+    - doc: person involved
+      dtype: text
+      name: user
+      required: false
+    - doc: anything else
+      dtype: text
+      name: notes
+      required: false
+    doc: information about histology of subject
+    name: Histology
+    neurodata_type_def: Histology
+    quantity: '?'
+  name: subject
+  neurodata_type_def: buz_Subject
+  neurodata_type_inc: Subject
+- attributes:
+  - doc: model
+    dtype: text
+    name: type
+    required: false
+  - doc: in um
+    dtype: float
+    name: core_diameter
+    required: false
+  - doc: in um
+    dtype: float
+    name: outer_diameter
+    required: false
+  - doc: 'whether a microdrive was used (0: not used, 1: used)'
+    dtype: uint
+    name: microdrive
+  - doc: um/turn
+    dtype: float
+    name: microdrive_lead
+    required: false
+  - doc: id of microdrive
+    dtype: int
+    name: microdrive_id
+    required: false
+  doc: Meta-data about optical fiber
+  name: OpticalFiber
+  neurodata_type_def: OpticalFiber
+  neurodata_type_inc: Device

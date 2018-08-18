@@ -345,6 +345,6 @@ def main():
 
 chang2nwb('/Users/bendichter/Desktop/Chang/data/EC169/EC169_B7')
 
-#if __name__ == '__main__':
-#    main()
+if __name__ == '__main__':
+    main()
 

@@ -1,10 +1,15 @@
-function UnitTimes = NEV2UnitTimes(nev_path, name)
+function file = AddNEVFile(file, nev, name)
 
 if ~exist('name','var') || isempty(name)
     name = 'spikes';
 end
 
-spikes_data = openNEV(nev_path);
+if ischar(nev)
+    spikes_data = openNEV(nev);
+else
+    spikes_data = nev;
+end
+    
 
 Spikes = spikes_data.Data.Spikes;
 spike_loc = ['/acquisition/' name '/spike_times'];
@@ -26,3 +31,5 @@ vi = types.core.VectorIndex('data', vd_ref);
 ei = types.core.ElementIdentifiers('data', int64(unique(Spikes.Electrode)));
 UnitTimes = types.core.UnitTimes('spike_times', vd, 'spike_times_index',...
     vi, 'unit_ids', ei);
+
+file.acquisition.set('spikes', UnitTimes);

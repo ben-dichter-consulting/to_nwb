@@ -16,21 +16,21 @@ def build_ext():
     datasets = [
         NWBDatasetSpec(doc='list of cell ids',
                        dtype='uint32',
-                       shape=(None, 1),
+                       shape=(None,),
                        name='gid',
-                       quantity='?'),
+                       quantity='?', dims=('cells',)),
         NWBDatasetSpec(doc='index pointer',
                        dtype='uint64',
-                       shape=(None, 1),
-                       name='index_pointer'),
+                       shape=(None,),
+                       name='index_pointer', dims=('cells',)),
         NWBDatasetSpec(doc='cell compartment ids corresponding to a given column in the data',
                        dtype='uint32',
-                       shape=(None, 1),
-                       name='element_id'),
+                       shape=(None,),
+                       name='element_id', dims=('compartments',)),
         NWBDatasetSpec(doc='relative position of recording within a given compartment',
                        dtype='float',
                        shape=(None, None),
-                       name='element_pos')
+                       name='element_pos', dims=('compartments', 'position'))
     ]
 
     cont_data = NWBGroupSpec(doc='A spec for storing cell recording variables',

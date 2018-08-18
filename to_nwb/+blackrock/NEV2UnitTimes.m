@@ -10,8 +10,7 @@ Spikes = spikes_data.Data.Spikes;
 spike_loc = ['/acquisition/' name '/spike_times'];
 
 [sorted_elecs, i_sort] = sort(Spikes.Electrode);
-% need to convert timestamps to seconds but don't know how yet
-sorted_spike_times = single(Spikes.TimeStamp(i_sort))/1000.;
+sorted_spike_times = single(Spikes.TimeStamp(i_sort))/spikes_data.MetaTags.TimeRes;
 vd = types.core.VectorData('data', sorted_spike_times);
 
 steps = find(diff(sorted_elecs));

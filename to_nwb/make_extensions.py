@@ -5,6 +5,11 @@ name = 'general'
 ns_path = name + '.namespace.yaml'
 ext_source = name + '.extensions.yaml'
 
+values = NWBAttributeSpec(name='values',
+                          dtype='text',
+                          doc='values that the indices are indexing',
+                          shape=(None, 1))
+
 cat_cell_info = NWBGroupSpec(
     neurodata_type_def='CatCellInfo',
     doc='Categorical Cell Info',
@@ -15,12 +20,19 @@ cat_cell_info = NWBGroupSpec(
         NWBDatasetSpec(name='indices',
                        doc='list of indices for values',
                        shape=(None, 1), dtype='int',
-                       attributes=[
-                           NWBAttributeSpec(name='values', dtype='text',
-                                            doc='values that the indices are indexing',
-                                            shape=(None, 1))])],
+                       attributes=[values])],
     neurodata_type_inc='NWBDataInterface')
 
+cat_timeseries = NWBGroupSpec(
+    neurodata_type_def='CatTimeSeries',
+    neurodata_type_inc='TimeSeries',
+    doc='Categorical data through time',
+    datasets=[NWBDatasetSpec(name='data',
+                             shape=(None, 1), dtype='int',
+                             doc='timeseries of indicies for values',
+                             attributes=[values])])
+
 ns_builder = NWBNamespaceBuilder(name + ' extensions', name)
-ns_builder.add_spec(ext_source, cat_cell_info)
+for spec in (cat_cell_info, cat_timeseries):
+    ns_builder.add_spec(ext_source, spec)
 ns_builder.export(ns_path)

@@ -1,6 +1,6 @@
 import os
 import numpy as np
-from neuroscope import get_lfp_sampling_rate, get_channel_groups
+from to_nwb.neuroscope import get_lfp_sampling_rate, get_channel_groups
 
 from pynwb.ecephys import ElectricalSeries, LFP
 from pynwb import NWBFile, NWBHDF5IO, TimeSeries

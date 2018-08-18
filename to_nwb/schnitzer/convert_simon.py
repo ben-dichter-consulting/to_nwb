@@ -1,13 +1,13 @@
 from scipy.io import loadmat
 from datetime import datetime
 
-from pynwb.ecephys import ElectricalSeries, Clustering
-from pynwb import NWBFile, NWBHDF5IO, TimeSeries
-from pynwb.ogen import OptogeneticStimulusSite, OptogeneticSeries
+from pynwb.ecephys import ElectricalSeries
+from pynwb import NWBFile, NWBHDF5IO
+from pynwb.ogen import OptogeneticSeries
 
 import numpy as np
 
-from general import gzip
+from to_nwb.general import gzip
 
 
 fpath = '/Users/bendichter/Desktop/Schnitzer/data/eoPHYS_SS1anesthesia/converted_data.mat'

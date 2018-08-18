@@ -10,8 +10,8 @@ from pynwb.misc import SpikeUnit, UnitTimes
 from pynwb.behavior import SpatialSeries, Position
 from pynwb.form.backends.hdf5 import H5DataIO
 
-from utils import pairwise
-from general import PopulationSpikeTimes, CatCellInfo
+from to_nwb.utils import pairwise
+from to_nwb.general import PopulationSpikeTimes, CatCellInfo
 
 
 def convert_file1(fpath, session_start_time,

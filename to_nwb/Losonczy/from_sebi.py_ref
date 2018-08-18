@@ -3,10 +3,11 @@
 
 # In[174]:
 
+import sys
 from pynwb import NWBFile
 from pynwb.behavior import SpatialSeries, Position, BehavioralTimeSeries, BehavioralEvents
 from pynwb.ecephys import ElectricalSeries, LFP
-from pynwb.ophys import OpticalChannel, TwoPhotonSeries, Fluorescence, DfOverF, ROITable
+from pynwb.ophys import OpticalChannel, TwoPhotonSeries, Fluorescence, DfOverF, ROITable, ImageSegmentation
 from pynwb.image import ImageSeries
 from pynwb.form.backends.hdf5.h5_utils import H5DataIO
 
@@ -21,9 +22,9 @@ import h5py
 import numpy as np
 
 # Losonczy Imports
-import Losonczy.lfp_helpers as lfph
-from lab.misc.auto_helpers import get_element_size_um, get_prairieview_version
-from lab.classes.dbclasses import dbExperiment
+import to_nwb.Losonczy.lfp_helpers as lfph
+#from lab.misc.auto_helpers import get_element_size_um, get_prairieview_version
+#from lab.classes.dbclasses import dbExperiment
 
 
 # TODO throughout, replace source fields with appropriate info
@@ -137,10 +138,10 @@ def add_imaging(nwbfile, expt, z_spacing=25., device='2P Microscope', location='
     h5_path = os.path.join(h5_folder, h5_file)
 
     pv_xml = os.path.join(h5_folder, os.path.basename(h5_folder) + '.xml')
-    pv_version = get_prairieview_version(pv_xml)
-    [y_um, x_um] = get_element_size_um(pv_xml, pv_version)[-2:]
+    #pv_version = get_prairieview_version(pv_xml)
+    #[y_um, x_um] = get_element_size_um(pv_xml, pv_version)[-2:]
 
-    elem_size_um = [z_spacing, y_um, x_um]
+    #elem_size_um = [z_spacing, y_um, x_um]
 
     # TODO allow for flexibility in setting device, excitation, indicator, location
     # TODO nwb-schema issue #151 needs to be resolved so we can actually use imaging data size
@@ -247,7 +248,7 @@ def get_image_mask(roi):
     return imask
 
 
-def add_rois(module, expt, labels):
+def add_rois(module, expt, labels, nwbfile):
 
     for label in labels:
 
@@ -298,7 +299,7 @@ def add_dff(module, expt, labels):
 
 def main(argv):
     # Lab-side read expts
-    expt = dbExperiment(10668)
+    expt = []#dbExperiment(10668)
 
     # Initialize NWBFile directly from experiment object metadata
 

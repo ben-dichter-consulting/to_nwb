@@ -60,3 +60,12 @@ def isin_time_windows(tt, tbounds, inclusive_left=True, inclusive_right=False):
         for tbound in tbounds:
             tf = tf | isin_single_interval(tt, tbound, inclusive_left, inclusive_right)
     return tf.astype(bool)
+
+
+def check_equal(iterator):
+    iterator = iter(iterator)
+    try:
+        first = next(iterator)
+    except StopIteration:
+        return True
+    return all(first == rest for rest in iterator)

@@ -1,21 +1,20 @@
 import os
+from functools import partialmethod
 
 from datetime import datetime
 import numpy as np
-from scipy.io import loadmat
 import h5py
 
 
 from pynwb import NWBFile, NWBHDF5IO
 from pynwb.ecephys import ElectricalSeries, LFP
 from pynwb.ophys import OpticalChannel, TwoPhotonSeries
-from pynwb.image import ImageSeries
+from pynwb.form.backends.hdf5 import H5DataIO as gzip
 
-
-from neuroscope import get_channel_groups
-from general import gzip
-
+from to_nwb.neuroscope import get_channel_groups
 from Losonczy.lfp_helpers import loadEEG
+
+gzip.__init__ = partialmethod(gzip.__init__, compression='gzip')
 
 NA = 'THIS REQUIRED ATTRIBUTE INTENTIONALLY LEFT BLANK.'
 SHORTEN = True
@@ -32,8 +31,7 @@ lab = 'Losonczy'
 
 source = fname
 nwbfile = NWBFile(source, session_description, identifier,
-                  session_start_time, datetime.now(),
-                  institution=institution, lab=lab)
+                  session_start_time, institution=institution, lab=lab)
 all_ts = []
 
 eeg_base_name = os.path.join(fpath, 'LFP', 'svr009_Day2_FOV1_170504_131823')
@@ -89,7 +87,6 @@ optical_channel = OpticalChannel(
 )
 
 
-
 imaging_h5_filepath = '/Users/bendichter/Desktop/Losonczy/from_sebi/example_data/TSeries-05042017-001_Cycle00001_Element00001.h5'
 
 
@@ -129,13 +126,10 @@ for channel_name, imaging_data in zip(channel_names, all_imaging_data):
     image_series = TwoPhotonSeries(name='image', source='Ca2+ imaging example',
                                    dimension=[2], data=imaging_data,
                                    imaging_plane=imaging_plane,
-                                   starting_frame=[0], timestamps=[1,2,3],
+                                   starting_frame=[0], timestamps=[1, 2, 3],
                                    scan_line_rate=np.nan,
                                    pmt_gain=np.nan)
-nwbfile.add_acquisition(image_series)
-
-
-
+    nwbfile.add_acquisition(image_series)
 
 out_fname = 'sebi_data.nwb'
 print('writing NWB file...', end='', flush=True)

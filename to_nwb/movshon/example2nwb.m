@@ -2,106 +2,48 @@
 
 addpath(genpath('~/dev/NPMK'));
 %%
-ns_path = '/Users/bendichter/Desktop/Movshon/data/Data_BlackRock_MWorks_forBenDichter/HT_V4_Textures2_200stimoff_180716_001.ns6';
-filename = '/Users/bendichter/Desktop/Movshon/data/Data_BlackRock_MWorks_forBenDichter/HT_V4_Textures2_200stimoff_180716_001.nwb';
-nev_path = '/Users/bendichter/Desktop/Movshon/data/Data_BlackRock_MWorks_forBenDichter/HT_V4_Textures2_200stimoff_180716_001.nev';
+basepath = '/Users/bendichter/Desktop/Movshon/data/Data_BlackRock_MWorks_forBenDichter';
+fname = 'HT_V4_Textures2_200stimoff_180716_001';
+fname2 = 'HT_V4IT_Textures2_200stimoff_180716_001';
+ns_path = fullfile(basepath, [fname '.ns6']);
+nwb_path = fullfile(basepath, [fname '.nwb']);
+nev_path = fullfile(basepath, [fname '.nev']);
+mwk_path = fullfile(basepath, [fname2 '.mwk']);
+mworks_converted_path = fullfile(basepath, [fname2 '.mwk'],...
+    [fname2 '_mworks_all_output.mat']);
+
 %%
-lfp_data = openNSx(ns_path);
+NS = openNSx(ns_path);
 %%
-spikes_data = openNEV(nev_path);
+NEV = openNEV(nev_path);
 %%
+times = align_nev_to_mwk(mwk_path, NEV);
+NEV_starting_time = times.NEV_time_us(1) / 1000000;
+
+in_seconds = [0,0,0,3600*24,3600,60,1,1/1000];
+NS_delay = dot(in_seconds,NS.MetaTags.DateTimeRaw - NEV.MetaTags.DateTimeRaw);
+NS_starting_time = NEV_starting_time + NS_delay;
+%%
+date = NEV.MetaTags.DateTimeRaw([1:2,4:7]); % ignore milliseconds
+
 file = nwbfile( ...
-    'source', 'a test source', ...
+    'source', fname, ...
     'session_description', 'a test NWB File', ...
-    'identifier', 'TEST123', ...
-    'session_start_time', datestr([1970, 1, 1, 12, 0, 0], 'yyyy-mm-dd HH:MM:SS'), ...
-    'file_create_date', datestr([2017, 4, 15, 12, 0, 0], 'yyyy-mm-dd HH:MM:SS'));
-
-%% electrodes
-
-labels = {lfp_data.ElectrodesInfo.Label};
-
-elecs = [];%zeros(length(labels), 1);
-for i = 1:length(labels)
-    elecs(i) = strcmp(labels{i}(1:4), 'elec');
-end
-
-dev = types.core.Device( ...
-    'source', ns_path);
-file.general_devices.set('dev1', dev);
-
-eg = types.core.ElectrodeGroup('source', ns_path, ...
-    'description', 'a test ElectrodeGroup', ...
-    'location', 'unknown', ...
-    'device', types.untyped.SoftLink('/general/devices/dev1'));
-file.general_extracellular_ephys.set('electrode_group', eg);
-ov = types.untyped.ObjectView('/general/extracellular_ephys/electrode_group');
-
-variables = {'id', 'x', 'y', 'z', 'imp', 'location', 'filtering', ...
-    'description', 'group', 'group_name'};
-tbl = table(int64(1), NaN, NaN, NaN, NaN, {'location'}, {'filtering'}, ...
-    labels(1), ov, {'electrode_group'},...
-    'VariableNames', variables);
-for i = 2:sum(elecs)
-    tbl = [tbl; {int64(i), NaN, NaN, NaN, NaN, 'location', 'filtering', ...
-        labels(i), ov, 'electrode_group'}];
-end
-
-et = types.core.ElectrodeTable('data', tbl);
-file.general_extracellular_ephys.set('electrodes', et);
+    'identifier', fname, ...
+    'session_start_time', datestr(date, 'yyyy-mm-dd HH:MM:SS'), ...
+    'file_create_date', datestr(now, 'yyyy-mm-dd HH:MM:SS'));
 
 %%
-rv = types.untyped.RegionView('/general/extracellular_ephys/electrodes',...
-    {[1 sum(elecs)]});
-etr = types.core.ElectrodeTableRegion('data', rv);
+file = blackrock.AddNSFile(file, NS, NS_starting_time);
+%%
+file = blackrock.AddNEVFile(file, NEV, NEV_starting_time);
+%%
+file = mworks.AddEyePos(file, mwk_path, {'eye_h', 'eye_v'});
 
-%% write lfp
-
-es = types.core.ElectricalSeries( ...
-    'source', 'a hypothetical source', ...
-    'data', lfp_data.Data(logical(elecs),1:1000)', ...
-    'electrode_group', types.untyped.SoftLink('/general/extracellular_ephys/elec1'), ...
-    'timestamps', (1:10)',...
-    'electrodes', etr);
-
-file.acquisition.set('test_eS', es);
-
-%% write spikes
-
-name = 'spikes';
-
-Spikes = spikes_data.Data.Spikes;
-spike_loc = ['/acquisition/' name '/spike_times'];
-
-[sorted_elecs, i_sort] = sort(Spikes.Electrode);
-% need to convert timestamps to seconds but don't know how yet
-sorted_spike_times = single(Spikes.TimeStamp(i_sort))/1000.;
-vd = types.core.VectorData('data', sorted_spike_times);
-
-steps = find(diff(sorted_elecs));
-vd_ref = types.untyped.RegionView(spike_loc, {[1 steps(1)]});
-for i = 1:length(steps)-1
-    vd_ref(end+1) = types.untyped.RegionView(spike_loc, ...
-        {[steps(i)+1, steps(i+1)]});
-end
-vd_ref(end+1) = types.untyped.RegionView(spike_loc, ...
-    {[steps(i+1), length(Spikes.TimeStamp)]});
-
-vi = types.core.VectorIndex('data', vd_ref);
-ei = types.core.ElementIdentifiers('data', int64(unique(Spikes.Electrode)));
-ut = types.core.UnitTimes('spike_times', vd, ...
-    'spike_times_index', vi, 'unit_ids', ei);
-
-file.acquisition.set(name, ut);
 
 
 %% write file
-
-
-
-
-nwbExport(file, filename)
+nwbExport(file, nwb_path)
 
 %% test read
-
-nwbRead(filename)
+nwb_read = nwbRead(nwb_path);

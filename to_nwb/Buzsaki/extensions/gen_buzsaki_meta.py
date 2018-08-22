@@ -2,7 +2,7 @@ from pynwb.spec import NWBDatasetSpec, NWBNamespaceBuilder, NWBGroupSpec, NWBAtt
 from pynwb.form.spec import RefSpec
 from pynwb import register_class, load_namespaces, NWBFile, NWBHDF5IO, get_class
 from pynwb.form.utils import docval
-from pynwb.file import Subject as original_Subject, NWBContainer, MultiContainerInterface
+from pynwb.file import Subject, NWBContainer, MultiContainerInterface
 
 
 name = 'buzsaki_meta'
@@ -22,12 +22,16 @@ virus_injection = NWBGroupSpec(
                          dtype='float', required=False),
         NWBAttributeSpec(name='scheme', doc='scheme of injection', dtype='text', required=False)])
 
+virus_injections = NWBGroupSpec(neurodata_type_def='VirusInjections', name='virus_injections',
+                                doc='stores virus injections', quantity='?',
+                                groups=[virus_injection])
+
 surgery = NWBGroupSpec(
     neurodata_type_def='Surgery', doc='information about a specific surgery', quantity='+',
     neurodata_type_inc='NWBDataInterface',
-    datasets=[NWBDatasetSpec(name='devices', quantity='*', doc='links to implanted/explanted devices',
+    datasets=[NWBDatasetSpec(name='devices', quantity='?', doc='links to implanted/explanted devices',
                              dtype=RefSpec('Device', 'object'))],
-    groups=[virus_injection],
+    groups=[virus_injections],
     attributes=[
         NWBAttributeSpec(name='start_datetime', doc='datetime in ISO 8601', dtype='text', required=False),
         NWBAttributeSpec(name='end_datetime', doc='datetime in ISO 8601', dtype='text', required=False),
@@ -41,7 +45,9 @@ surgery = NWBGroupSpec(
         NWBAttributeSpec(name='target_anatomy', doc='target anatomy', dtype='text', required=False),
         NWBAttributeSpec(name='room', doc='place where the surgery took place', dtype='text',
                          required=False),
-        NWBAttributeSpec(name='surgery_type', doc='"chronic" or "acute"', dtype='text', required=False)])
+        NWBAttributeSpec(name='surgery_type', doc='"chronic" or "acute"', dtype='text', required=False),
+        #NWBAttributeSpec(name='help', doc='help', dtype='text', value='Information about surgery')
+    ])
 
 surgeries = NWBGroupSpec(neurodata_type_def='Surgeries', name='surgeries',
                          doc='relevant data for surgeries', quantity='?',
@@ -49,7 +55,7 @@ surgeries = NWBGroupSpec(neurodata_type_def='Surgeries', name='surgeries',
 
 histology = NWBGroupSpec(
     neurodata_type_def='Histology',
-    name='Histology',
+    name='histology',
     doc='information about histology of subject',
     quantity='?',
     attributes=[
@@ -82,13 +88,11 @@ histology = NWBGroupSpec(
 
 subject = NWBGroupSpec(
     neurodata_type_inc='Subject',
-    neurodata_type_def='buz_Subject',
+    neurodata_type_def='BuzSubject',
     name='subject',
     doc='information about subject',
     groups=[surgeries, histology],
     attributes=[
-        NWBAttributeSpec(name='subject_id', required=True, dtype='text',
-                         doc='ID of subject (lab convention)'),
         NWBAttributeSpec(
             name='sex', required=False, dtype='text',
             doc='Sex of subject. Options: "M": male, "F": female, "O": other, "U": unknown'),
@@ -149,8 +153,8 @@ def obj2docval(spec):
         arg_spec = {'name': attrib.name, 'type': _type, 'doc': attrib.doc}
         if not attrib.required:
             arg_spec['default'] = None
-
-        args_spec.append(arg_spec)
+        if not attrib.name == 'help':
+            args_spec.append(arg_spec)
 
     for group in spec.groups:
         arg_spec = {'name': group.name, 'type': group.neurodata_type_def, 'doc': group.doc}
@@ -159,13 +163,19 @@ def obj2docval(spec):
 
         args_spec.append(arg_spec)
 
+    names = [x['name'] for x in args_spec]
+    super_args = eval(spec['neurodata_type_inc']).__init__.__docval__['args']
+    for x in super_args:
+        if x['name'] not in names:
+            args_spec.append(x)
+
     return tuple(args_spec)
 
 
 def get_nwbfields(spec):
     vars = [attrib.name for attrib in spec.attributes] + \
-           [attrib.name for attrib in spec.groups] + \
-           [attrib.name for attrib in spec.datasets]
+           [attrib.name for attrib in spec.datasets] + \
+           [{'name': attrib.name, 'child': True} for attrib in spec.groups]
 
     return tuple(vars)
 
@@ -175,16 +185,14 @@ def get_nwbfields(spec):
 load_namespaces(ns_path)
 
 
-@register_class('buz_Subject', name)
-class mySubject(original_Subject):
+@register_class('BuzSubject', name)
+class BuzSubject(Subject):
 
-    __nwbfields__ = tuple(list(get_nwbfields(subject)) + ['surgeries'])
+    __nwbfields__ = get_nwbfields(subject)
 
     @docval(*obj2docval(subject))
     def __init__(self, **kwargs):
-
-        original_Subject.__init__(self, subject_id=kwargs['subject_id'], source='source')
-
+        super(BuzSubject, self).__init__(subject_id=kwargs['subject_id'], source='source')
         for attr, val in kwargs.items():
             if attr is not 'subject_id':
                 setattr(self, attr, val)
@@ -212,12 +220,36 @@ class Surgeries(MultiContainerInterface):
     __help = 'info about surgeries'
 
 
-surgeries = Surgeries(source='lab notebook')
-surgery = Surgery(name='implantation', notes='test surgery', source='lab notebook')
-surgeries.add_surgery(surgery)
+VirusInjection = get_class('VirusInjection', name)
 
-subject = mySubject(subject_id='007', genotype='mouse1', species='mouse',
-                    sex='U', age='3 months', surgeries=surgeries)
+
+@register_class('VirusInjections', name)
+class VirusInjections(MultiContainerInterface):
+
+    __clsconf__ = {
+        'attr': 'virus_injections',
+        'type': VirusInjection,
+        'add': 'add_virus_injection',
+        'get': 'get_virus_injection',
+        'create': 'create_virus_injection',
+    }
+
+    __help = 'info about virus injections'
+
+
+virus_injections = VirusInjections(source='lab notebook')
+virus_injections.add_virus_injection(
+    VirusInjection(name='virus_injection1', coordinates=[1., 2., 3.], virus='a', volume=.45,
+                   source='source')
+)
+
+surgeries = Surgeries(source='lab notebook')
+surgeries.add_surgery(Surgery(name='implantation', notes='test surgery', source='lab notebook'),
+                      virus_injections=virus_injections)
+surgeries.add_surgery(Surgery(name='explantation', notes='test surgery', source='lab notebook'))
+
+subject = BuzSubject(subject_id='007', genotype='mouse1', species='mouse',
+                     sex='U', age='3 months', surgeries=surgeries)
 
 nwbfile = NWBFile("source", "a file with metadata", "NB123A", '2018-06-01T00:00:00', subject=subject)
 

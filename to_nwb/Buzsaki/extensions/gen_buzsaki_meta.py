@@ -1,8 +1,11 @@
 from pynwb.spec import NWBDatasetSpec, NWBNamespaceBuilder, NWBGroupSpec, NWBAttributeSpec
 from pynwb.form.spec import RefSpec
-from pynwb import register_class, load_namespaces, NWBFile, NWBHDF5IO, get_class
+from pynwb import register_class, load_namespaces, NWBFile, NWBHDF5IO
 from pynwb.form.utils import docval
-from pynwb.file import Subject, NWBContainer, MultiContainerInterface
+from pynwb.file import Subject, NWBContainer, MultiContainerInterface, NWBDataInterface
+from pynwb.device import Device
+
+import re
 
 
 name = 'buzsaki_meta'
@@ -20,11 +23,18 @@ virus_injection = NWBGroupSpec(
         NWBAttributeSpec(name='volume', doc='volume of injecting in nL', dtype='float'),
         NWBAttributeSpec(name='rate', doc='rate of injection (nL/s)',
                          dtype='float', required=False),
-        NWBAttributeSpec(name='scheme', doc='scheme of injection', dtype='text', required=False)])
+        NWBAttributeSpec(name='scheme', doc='scheme of injection', dtype='text', required=False),
+        NWBAttributeSpec(name='help', doc='help', dtype='text', value='Information about a virus injection')])
 
-virus_injections = NWBGroupSpec(neurodata_type_def='VirusInjections', name='virus_injections',
-                                doc='stores virus injections', quantity='?',
-                                groups=[virus_injection])
+virus_injections = NWBGroupSpec(
+    neurodata_type_def='VirusInjections',
+    neurodata_type_inc='NWBDataInterface',
+    name='virus_injections',
+    doc='stores virus injections', quantity='?',
+    groups=[virus_injection],
+    attributes=[
+        NWBAttributeSpec(name='help', doc='help', dtype='text', value='Container for virus injections')
+    ])
 
 surgery = NWBGroupSpec(
     neurodata_type_def='Surgery', doc='information about a specific surgery', quantity='+',
@@ -46,15 +56,22 @@ surgery = NWBGroupSpec(
         NWBAttributeSpec(name='room', doc='place where the surgery took place', dtype='text',
                          required=False),
         NWBAttributeSpec(name='surgery_type', doc='"chronic" or "acute"', dtype='text', required=False),
-        #NWBAttributeSpec(name='help', doc='help', dtype='text', value='Information about surgery')
+        NWBAttributeSpec(name='help', doc='help', dtype='text', value='Information about surgery')
     ])
 
-surgeries = NWBGroupSpec(neurodata_type_def='Surgeries', name='surgeries',
-                         doc='relevant data for surgeries', quantity='?',
-                         groups=[surgery])
+surgeries = NWBGroupSpec(
+    neurodata_type_def='Surgeries',
+    neurodata_type_inc='NWBDataInterface',
+    name='surgeries',
+    doc='relevant data for surgeries', quantity='?',
+    groups=[surgery],
+    attributes=[
+        NWBAttributeSpec(name='help', doc='help', dtype='text', value='Container for surgeries')
+    ])
 
 histology = NWBGroupSpec(
     neurodata_type_def='Histology',
+    neurodata_type_inc='NWBDataInterface',
     name='histology',
     doc='information about histology of subject',
     quantity='?',
@@ -82,7 +99,8 @@ histology = NWBGroupSpec(
         NWBAttributeSpec(name='post_processing', doc='[Z-stacked, Stiched]', dtype='text',
                          required=False),
         NWBAttributeSpec(name='user', doc='person involved', dtype='text', required=False),
-        NWBAttributeSpec(name='notes', doc='anything else', dtype='text', required=False)
+        NWBAttributeSpec(name='notes', doc='anything else', dtype='text', required=False),
+        NWBAttributeSpec(name='help', doc='help', dtype='text', value='Information about Histology')
     ])
 
 
@@ -114,9 +132,11 @@ subject = NWBGroupSpec(
                          doc='Earmark of subject'),
         NWBAttributeSpec(name='weight', required=False, dtype='text',
                          doc='Weight at time of experiment, at time of surgery and at other '
-                             'important times')])
+                             'important times'),
+        NWBAttributeSpec(name='help', doc='help', dtype='text', value='Buzsaki subject structure')
+    ])
 
-OpticalFiber = NWBGroupSpec(
+optical_fiber = NWBGroupSpec(
     neurodata_type_inc='Device',
     neurodata_type_def='OpticalFiber',
     name='OpticalFiber',
@@ -126,15 +146,16 @@ OpticalFiber = NWBGroupSpec(
         NWBAttributeSpec(name='core_diameter', doc='in um', dtype='float', required=False),
         NWBAttributeSpec(name='outer_diameter', doc='in um', dtype='float', required=False),
         NWBAttributeSpec(name='microdrive', doc='whether a microdrive was used (0: not used, 1: used)',
-                         dtype='uint'),
+                         dtype='int'),
         NWBAttributeSpec(name='microdrive_lead', doc='um/turn', dtype='float', required=False),
-        NWBAttributeSpec(name='microdrive_id', doc='id of microdrive', dtype='int', required=False)
+        NWBAttributeSpec(name='microdrive_id', doc='id of microdrive', dtype='int', required=False),
+        NWBAttributeSpec(name='help', doc='help', dtype='text', value='Information about optical fiber')
     ]
 )
 
 ns_builder = NWBNamespaceBuilder(name + ' extensions', name)
 
-specs = (subject, OpticalFiber)
+specs = (subject, optical_fiber)
 for spec in specs:
     ns_builder.add_spec(ext_source, spec)
 ns_builder.export(ns_path)
@@ -156,7 +177,7 @@ def obj2docval(spec):
         if not attrib.name == 'help':
             args_spec.append(arg_spec)
 
-    for group in spec.groups:
+    for group in spec.groups + spec.datasets:
         arg_spec = {'name': group.name, 'type': group.neurodata_type_def, 'doc': group.doc}
         if group.quantity in ('?', '*'):
             arg_spec['default'] = None
@@ -184,76 +205,109 @@ def get_nwbfields(spec):
 
 load_namespaces(ns_path)
 
-
-@register_class('BuzSubject', name)
-class BuzSubject(Subject):
-
-    __nwbfields__ = get_nwbfields(subject)
-
-    @docval(*obj2docval(subject))
-    def __init__(self, **kwargs):
-        super(BuzSubject, self).__init__(subject_id=kwargs['subject_id'], source='source')
-        for attr, val in kwargs.items():
-            if attr is not 'subject_id':
-                setattr(self, attr, val)
-
-
 # load custom classes
 ns_path = name + '.namespace.yaml'
 ext_source = name + '.extensions.yaml'
 load_namespaces(ns_path)
 
-Surgery = get_class('Surgery', name)
+
+def get_class(spec):
+    class AutoClass(eval(spec['neurodata_type_inc'])):
+        __nwbfields__ = get_nwbfields(spec)
+
+        @docval(*obj2docval(spec))
+        def __init__(self, **kwargs):
+            super_args = [x['name'] for x in super(AutoClass, self).__init__.__docval__['args']]
+            super(AutoClass, self).__init__(**{arg: kwargs[arg] for arg in super_args if arg in kwargs})
+            for attr, val in kwargs.items():
+                if attr not in super_args:
+                    setattr(self, attr, val)
+    return AutoClass
+
+
+def camel2underscore(name):
+    s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+    return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+
+
+def get_multi_container(spec):
+    inner_class_name =spec.groups[0]['neurodata_type_def']
+    inner_class = camel2underscore(inner_class_name)
+    InnerClass = eval(inner_class_name)
+
+    @register_class(spec['neurodata_type_def'], name)
+    class AutoClass(MultiContainerInterface):
+        __clsconf__ = {
+            'attr': inner_class + 's',
+            'type': InnerClass,
+            'add': 'add_' + inner_class,
+            'get': 'get_' + inner_class,
+            'create': 'create_' + inner_class,
+        }
+
+        __help = 'container for ' + inner_class + 's'
+
+    return AutoClass
+
+
+@register_class('Surgery', name)
+class Surgery(get_class(surgery)):
+    pass
 
 
 @register_class('Surgeries', name)
-class Surgeries(MultiContainerInterface):
-
-    __clsconf__ = {
-        'attr': 'surgerys',
-        'type': Surgery,
-        'add': 'add_surgery',
-        'get': 'get_surgery',
-        'create': 'create_surgery',
-    }
-
-    __help = 'info about surgeries'
+class Surgeries(get_multi_container(surgeries)):
+    pass
 
 
-VirusInjection = get_class('VirusInjection', name)
+@register_class('VirusInjection', name)
+class VirusInjection(get_class(virus_injection)):
+    pass
 
 
 @register_class('VirusInjections', name)
-class VirusInjections(MultiContainerInterface):
+class VirusInjections(get_multi_container(virus_injections)):
+    pass
 
-    __clsconf__ = {
-        'attr': 'virus_injections',
-        'type': VirusInjection,
-        'add': 'add_virus_injection',
-        'get': 'get_virus_injection',
-        'create': 'create_virus_injection',
-    }
 
-    __help = 'info about virus injections'
+@register_class('BuzSubject', name)
+class BuzSubject(get_class(subject)):
+    pass
+
+
+@register_class('Histology', name)
+class Histology(get_class(histology)):
+    pass
+
+
+@register_class('OpticalFiber', name)
+class OpticalFiber(get_class(optical_fiber)):
+    pass
 
 
 virus_injections = VirusInjections(source='lab notebook')
+
+
 virus_injections.add_virus_injection(
     VirusInjection(name='virus_injection1', coordinates=[1., 2., 3.], virus='a', volume=.45,
-                   source='source')
-)
+                   source='source'))
 
+implantation = Surgery(name='implantation', notes='test surgery', source='lab notebook',
+                       virus_injections=virus_injections)
 surgeries = Surgeries(source='lab notebook')
-surgeries.add_surgery(Surgery(name='implantation', notes='test surgery', source='lab notebook'),
-                      virus_injections=virus_injections)
-surgeries.add_surgery(Surgery(name='explantation', notes='test surgery', source='lab notebook'))
+surgeries.add_surgery(implantation)
 
 subject = BuzSubject(subject_id='007', genotype='mouse1', species='mouse',
-                     sex='U', age='3 months', surgeries=surgeries)
+                     sex='U', age='3 months', surgeries=surgeries, source='notebook')
 
 nwbfile = NWBFile("source", "a file with metadata", "NB123A", '2018-06-01T00:00:00', subject=subject)
+
+nwbfile.add_device(OpticalFiber(microdrive=0, source='source', name='optical_fiber1'))
 
 fname = 'test_ext.nwb'
 with NWBHDF5IO(fname, 'w') as io:
     io.write(nwbfile)
+
+with NWBHDF5IO(fname, 'r') as io:
+    io.read()
 

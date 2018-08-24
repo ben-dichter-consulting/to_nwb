@@ -252,7 +252,11 @@ def get_multi_container(spec):
 
 @register_class('Surgery', name)
 class Surgery(get_class(surgery)):
-    pass
+    @docval(*obj2docval(surgery))
+    def __init__(self, **kwargs):
+        super(Surgery, self).__init__(**kwargs)
+        if self.surgery_type not in ('chronic', 'acute', None):
+            raise ValueError(self.name + ": surgery_type must be 'chronic' or 'acute'")
 
 
 @register_class('Surgeries', name)
@@ -272,7 +276,11 @@ class VirusInjections(get_multi_container(virus_injections)):
 
 @register_class('BuzSubject', name)
 class BuzSubject(get_class(subject)):
-    pass
+    @docval(*obj2docval(subject))
+    def __init__(self, **kwargs):
+        super(BuzSubject, self).__init__(**kwargs)
+        if self.sex not in ('M', 'F', 'U'):
+            raise ValueError('sex must be M (male), F (female) or U (unknown)')
 
 
 @register_class('Histology', name)
@@ -285,24 +293,29 @@ class OpticalFiber(get_class(optical_fiber)):
     pass
 
 
-virus_injections = VirusInjections(source='lab notebook')
-
-
-virus_injections.add_virus_injection(
-    VirusInjection(name='virus_injection1', coordinates=[1., 2., 3.], virus='a', volume=.45,
-                   source='source'))
+virus_injections = VirusInjections(source='lab notebook', virus_injections=[
+    VirusInjection(name='virus_injection1', coordinates=[1., 2., 3.], virus='a', volume=.45, source='source')
+])
 
 implantation = Surgery(name='implantation', notes='test surgery', source='lab notebook',
-                       virus_injections=virus_injections)
+                       virus_injections=virus_injections, anesthesia='a', analgesics='a', antibiotics='a',
+                       target_anatomy='CA1', room='35C', surgery_type='chronic')
 surgeries = Surgeries(source='lab notebook')
 surgeries.add_surgery(implantation)
 
-subject = BuzSubject(subject_id='007', genotype='mouse1', species='mouse',
-                     sex='U', age='3 months', surgeries=surgeries, source='notebook')
+histology = Histology(name='histology', source='notebook', file_name='007_histology_files', file_name_ext='png',
+                      imaging_technique='widefield', slice_plane='Coronal', slice_thickness=100.,
+                      location_along_axis=21.4, brain_region_target='CA1', stainings='stainings info',
+                      light_source=300., image_scale=300., scale_bar=100., post_processing='Z-stacked',
+                      user='name of person', notes='notes')
+
+subject = BuzSubject(subject_id='007', genotype='mouse1', species='mouse', age='3 months',
+                     sex='U', surgeries=surgeries, source='notebook', histology=histology)
 
 nwbfile = NWBFile("source", "a file with metadata", "NB123A", '2018-06-01T00:00:00', subject=subject)
 
-nwbfile.add_device(OpticalFiber(microdrive=0, source='source', name='optical_fiber1'))
+nwbfile.add_device(OpticalFiber(microdrive=0, source='source', name='optical_fiber1', type='type A',
+                                core_diameter=.1, outer_diameter=.2, microdrive_lead=2.1, microdrive_id=1))
 
 fname = 'test_ext.nwb'
 with NWBHDF5IO(fname, 'w') as io:

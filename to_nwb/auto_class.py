@@ -1,5 +1,5 @@
 from pynwb.form.utils import docval
-from pynwb import __NS_CATALOG, register_class
+from pynwb import __NS_CATALOG, register_class, load_namespaces
 
 from pynwb.ecephys import *
 from pynwb.icephys import *

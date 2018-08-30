@@ -1,25 +1,25 @@
-import os
 import argparse
 import glob
+import os
 from datetime import datetime
+from os import path
+
 import numpy as np
 import pandas as pd
 import scipy.io as sio
-from os import path
-
 from h5py import File
-
-from scipy.io import loadmat
-
-from pynwb import NWBFile, TimeSeries, get_manager, load_namespaces,\
-    get_class, NWBHDF5IO
-from pynwb.misc import IntervalSeries
+from pynwb import NWBFile, TimeSeries, get_manager, load_namespaces, NWBHDF5IO
 from pynwb.ecephys import ElectricalSeries
 from pynwb.form.backends.hdf5 import H5DataIO
+from pynwb.misc import IntervalSeries
+from scipy.io import loadmat
+from tqdm import tqdm
 
-from chang.HTK import readHTK
-from chang.utils import remove_duplicates
+from .HTK import readHTK
+from ..utils import remove_duplicates
+from ..auto_class import get_class
 
+from pynwb import register_class
 
 """
 Convert ECoG to NWB
@@ -61,13 +61,35 @@ def add_cortical_surface(nwbfile, pial_files):
     return nwbfile, names
 
 
-def readhtks(htkpath, elecs):
+def add_hilbert_series(nwbfile, hilbdir, electrodes):
+    data, rate = readhtks(hilbdir)
+    load_namespaces('/Users/bendichter/dev/to_nwb/to_nwb/chang/time_frequency.namespace.yaml')
+    HilbertSeries = get_class('time_frequency', 'HilbertSeries')
+    hs = HilbertSeries(name='hilbert_series', source=hilbdir, filter_centers=[1., 2., 3.],
+                       filter_sigmas=[1., 2., 3.], data=data, rate=rate, electrodes=electrodes)
+
+    hilb_mod = nwbfile.create_processing_module(name='hilbert', source='na', description='na')
+    hilb_mod.add_container(hs)
+
+    return nwbfile
+
+
+def readhtks(htkpath, elecs=None, use_tqdm=True):
+    if elecs is None:
+        elecs = range(len(glob.glob(path.join(htkpath, 'Wav*.htk'))))
     data = []
-    for i in elecs:
+    if use_tqdm:
+        this_iter = tqdm(elecs)
+    else:
+        this_iter = elecs
+    for i in this_iter:
         htk = readHTK(path.join(htkpath, 'Wav' + gen_htk_num(i) + '.htk'),
                       scale_s_rate=True)
         data.append(htk['data'])
-    data = np.concatenate(data).T
+    data = np.stack(data)
+    if len(data.shape) == 3:
+        data = data.transpose([2, 0, 1])
+
     rate = htk['sampling_rate']
 
     return data, rate
@@ -75,8 +97,8 @@ def readhtks(htkpath, elecs):
 
 def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
               session_description=None, identifier=None, anin4=False,
-              ecog_format='mat', external_anat=True, include_pitch=False,
-              speakers=True, mic=True, mini=False, **kwargs):
+              ecog_format='mat', cortical_mesh=False, include_pitch=False,
+              speakers=True, mic=True, mini=False, hilb=False, **kwargs):
     """
 
     Parameters
@@ -96,13 +118,16 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
         supplied, that is used as the name of the timeseries.
     ecog_format: str
         ({'htk'}, 'mat')
-    external_anat: bool (optional)
-        True: (default) save the cortical surface data in a separate file and use an external link
-        False: save the cortical surface data in the file
+    cortical_mesh: str, bool (optional)
+        'internal': cortical mesh is saved normally
+        'external': cortical mesh is saved in an external file and a link is
+            provided to that file. This is useful if you have multiple sessions for a single subject.
+        False: (Default) cortical mesh is not saved
     include_pitch: bool
         add pitch data. Default: False
     speakers: bool
     mic: bool
+    mini: only save data stub
     kwargs: dict
         passed to pynwb.NWBFile
 
@@ -130,12 +155,10 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
     bad_time_file = path.join(blockpath, 'Artifacts', 'badTimeSegments.mat')
     lfp_path = path.join(blockpath, 'RawHTK')
     ecog400_path = path.join(blockpath, 'ecog400', 'ecog.mat')
-    elec_metadata_file = path.join(basepath, 'imaging', 'elecs',
-                                   'TDT_elecs_all.mat')
+    elec_metadata_file = path.join(basepath, 'imaging', 'elecs', 'TDT_elecs_all.mat')
     mesh_path = path.join(blockpath, 'imaging', 'Meshes')
-
-    if anin4:
-        aux_file = path.join(blockpath, 'Analog', 'ANIN4.htk')
+    aux_file = path.join(blockpath, 'Analog', 'ANIN4.htk')
+    hilbdir = path.join(blockpath, 'HilbAA_70to150_8band')
 
     # Get metadata for all electrodes
     elecs_metadata = sio.loadmat(elec_metadata_file)
@@ -287,7 +310,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
             nwbfile.add_raw_timeseries(bad_timepoints_ts)
 
     pial_files = glob.glob(path.join(mesh_path, '*pial.mat'))
-    if external_anat:
+    if cortical_mesh == 'external':
         anat_fpath = path.join(basepath, subject + '_cortical_surface.nwbaux')
         anat_nwbfile = NWBFile(source='',
                                session_description='',
@@ -302,11 +325,19 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
             surface_objects = anat_nwbfile.get_acquisition(pial_name)
             nwbfile.add_acquisition(surface_objects)
 
-    else:
+    elif cortical_mesh == 'internal':
         nwbfile = add_cortical_surface(nwbfile, pial_files)
+    elif cortical_mesh is False:
+        pass
+    else:
+        raise ValueError('bad value for cortical_mesh.')
 
     if include_pitch:
         pass  # add pitch here
+
+    if hilb:
+        nwbfile = add_hilbert_series(nwbfile, hilbdir, all_elecs)
+
 
     # Export the NWB file
     with NWBHDF5IO(outpath, manager=manager, mode='w') as io:

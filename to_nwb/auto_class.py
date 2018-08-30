@@ -73,7 +73,11 @@ def get_class(namespace, data_type):
         super_args = [x['name'] for x in super(type(self), self).__init__.__docval__['args']]
         super(type(self), self).__init__(**{arg: kwargs[arg] for arg in super_args
                                             if arg in kwargs and kwargs[arg] is not None})
-        [setattr(self, attr, val) for attr, val in kwargs.items() if not hasattr(self, attr)]
+        for attr, val in kwargs.items():
+            try:
+                setattr(self, attr, val)
+            except AttributeError:
+                pass
 
     d = {'__init__': __init__, '__nwbfields__': __nwbfields__}
 

@@ -2,14 +2,14 @@ from pynwb.form.utils import docval
 from pynwb import __NS_CATALOG, register_class, load_namespaces
 
 from pynwb.ecephys import *
-from pynwb.icephys import *
-from pynwb.file import *
-from pynwb.device import *
-from pynwb.misc import *
-from pynwb.ophys import *
-from pynwb.ogen import *
-from pynwb.retinotopy import *
-from pynwb.behavior import *
+#from pynwb.icephys import *
+#from pynwb.file import *
+#from pynwb.device import *
+#from pynwb.misc import *
+#from pynwb.ophys import *
+#from pynwb.ogen import *
+#from pynwb.retinotopy import *
+#from pynwb.behavior import *
 
 
 def obj2docval(spec):
@@ -78,6 +78,7 @@ def get_class(namespace, data_type):
                 setattr(self, attr, val)
             except AttributeError:
                 pass
+
 
     d = {'__init__': __init__, '__nwbfields__': __nwbfields__}
 

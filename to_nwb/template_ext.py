@@ -11,7 +11,7 @@ ext_source = name + ".extensions.yaml"
 
 spec = NWBGroupSpec(
     neurodata_type_def='',
-    neurodata_type_inc='',
+    neurodata_type_inc='NWBDataInterface',
     quantity='?',
     doc='',
     attributes=[

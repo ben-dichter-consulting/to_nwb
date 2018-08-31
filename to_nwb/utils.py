@@ -69,3 +69,20 @@ def check_equal(iterator):
     except StopIteration:
         return True
     return all(first == rest for rest in iterator)
+
+
+def remove_duplicates(li):
+    """Removes duplicates of a list but preserves list order
+    Parameters
+    ----------
+    li: list
+    Returns
+    -------
+    res: list
+    """
+    res = []
+    for e in li:
+        if e not in res:
+            res.append(e)
+
+    return res

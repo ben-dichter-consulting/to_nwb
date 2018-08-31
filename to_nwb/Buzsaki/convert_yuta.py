@@ -282,6 +282,8 @@ this_file = matin.fname == fname
 celltype_ids = matin.fineCellType.ravel()[this_file]
 region_ids = matin.region.ravel()[this_file]
 unit_ids = matin.unitID.ravel()[this_file]
+shanks = matin.shank.ravel()[this_file] - 1  # change from 1 to 0-indexing
+
 
 celltype_names = []
 for celltype_id, region_id in zip(celltype_ids, region_ids):
@@ -295,19 +297,36 @@ for celltype_id, region_id in zip(celltype_ids, region_ids):
     else:
         celltype_names.append(celltype_dict[celltype_id])
 
-u_cats, indices = np.unique(celltype_names, return_inverse=True)
+mono_syn_fpath = os.path.join(fpath, fname + '-MonoSynConvClick.mat')
 
-cci_obj = CatCellInfo(name='CellTypes',
-                      source='DG_all_6__UnitFeatureSummary_add.mat',
-                      values=list(u_cats), indices=list(indices))
+matin = loadmat(mono_syn_fpath)
+exc = matin['FinalExcMonoSynID']-1
+inh = matin['FinalInhMonoSynID']-1
 
-ut_obj = ns.build_unit_times(fpath, fname)
+nwbfile.add_unit_column('cell_type', 'name of cell type')
+nwbfile.add_unit_column('shank', '0-indexed shank number')
+nwbfile.add_unit_column('excit_mono_conn', 'ID of unit that has an excitatory mono-synaptic connection')
+nwbfile.add_unit_column('inhib_mono_conn', 'ID of unit that has an inhibitory mono-synaptic connection')
+
+for session_unit_id, (unit_id, celltype, shank) in enumerate(zip(unit_ids, celltype_names, shanks)):
+    unit_exc = exc[exc[:, 0] == session_unit_id, 1].ravel()
+    unit_inh = inh[inh[:, 0] == session_unit_id, 1].ravel()
+    print(unit_exc)
+    nwbfile.add_unit({
+        'id': unit_id,
+        'cell_type': celltype,
+        'shank': shank,
+        'excit_mono_conn': unit_exc,
+        #'inhib_mono_conn': unit_inh
+    })
+
+
+ut_obj = ns.build_unit_times(fpath, fname, unit_ids=unit_ids)
 
 module_cellular = nwbfile.create_processing_module('cellular', source=source,
-                                                 description=source)
+                                                   description=source)
 
 module_cellular.add_container(ut_obj)
-module_cellular.add_container(cci_obj)
 
 trialdata_path = os.path.join(fpath, fname + '__EightMazeRun.mat')
 trials_data = loadmat(trialdata_path)['EightMazeRun']
@@ -322,19 +341,6 @@ features[:2] = 'start', 'end'
 
 for trial_data in trials_data:
     nwbfile.add_trial({lab: dat for lab, dat in zip(features, trial_data[:7])})
-
-mono_syn_fpath = os.path.join(fpath, fname+'-MonoSynConvClick.mat')
-
-matin = loadmat(mono_syn_fpath)
-exc = matin['FinalExcMonoSynID']
-inh = matin['FinalInhMonoSynID']
-
-exc_obj = CatCellInfo('excitatory_connections', 'YutaMouse41-150903-MonoSynConvClick.mat',
-                      values=[], cell_index=exc[:, 0] - 1, indices=exc[:, 1] - 1)
-module_cellular.add_container(exc_obj)
-inh_obj = CatCellInfo('inhibitory_connections', 'YutaMouse41-150903-MonoSynConvClick.mat',
-                      values=[], cell_index=inh[:, 0] - 1, indices=inh[:, 1] - 1)
-module_cellular.add_container(inh_obj)
 
 sleep_state_fpath = os.path.join(fpath, fname+'--StatePeriod.mat')
 matin = loadmat(sleep_state_fpath)['StatePeriod']

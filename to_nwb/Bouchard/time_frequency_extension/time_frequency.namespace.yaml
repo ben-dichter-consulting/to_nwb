@@ -1,6 +1,0 @@
-namespaces:
-- doc: time_frequency
-  name: time_frequency
-  schema:
-  - namespace: core
-  - source: time_frequency.extensions.yaml

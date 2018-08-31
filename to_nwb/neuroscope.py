@@ -136,7 +136,7 @@ def get_clusters_single_shank(fpath, fname, shankn, fs=20000):
 
 
 def build_unit_times(fpath, fname, shanks=None, name='UnitTimes',
-                     source=None):
+                     source=None, unit_ids=None):
     """
 
     Parameters
@@ -147,7 +147,8 @@ def build_unit_times(fpath, fname, shanks=None, name='UnitTimes',
         shank numbers to process. If None, use 1:8
     name: str
     source: str
-    compress
+    unit_ids: array-like if ints, optional
+        If not provided, count from 0
 
     Returns
     -------
@@ -168,7 +169,11 @@ def build_unit_times(fpath, fname, shanks=None, name='UnitTimes',
     for shank_num in shanks:
         df = get_clusters_single_shank(fpath, fname, shank_num)
         for cluster_num, idf, in df.groupby('id'):
-            ut.add_spike_times(cell_counter, list(idf['time']))
+            if unit_ids is not None:
+                unit_id = unit_ids[cell_counter]
+            else:
+                unit_id = cell_counter
+            ut.add_spike_times(int(unit_id), list(idf['time']))
             cell_counter += 1
 
     return ut

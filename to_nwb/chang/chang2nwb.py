@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 import scipy.io as sio
 from h5py import File
-from pynwb import NWBFile, TimeSeries, get_manager, load_namespaces, NWBHDF5IO
+from pynwb import NWBFile, TimeSeries, get_manager, NWBHDF5IO
 from pynwb.ecephys import ElectricalSeries
 from pynwb.form.backends.hdf5 import H5DataIO
 from pynwb.misc import IntervalSeries
@@ -17,9 +17,14 @@ from tqdm import tqdm
 
 from .HTK import readHTK
 from ..utils import remove_duplicates
-from ..auto_class import get_class
 
-from pynwb import register_class
+from ..extensions.time_frequency import HilbertSeries
+from ..extensions.ecog import CorticalSurface
+
+
+# get_manager must come after dynamic imports
+manager = get_manager()
+
 
 """
 Convert ECoG to NWB
@@ -46,8 +51,6 @@ def gen_htk_num(i):
 
 
 def add_cortical_surface(nwbfile, pial_files):
-    load_namespaces('ecog.namespace.yaml')
-    CorticalSurface = get_class('CorticalSurface', 'ecog')
 
     names = []
     for pial_file in pial_files:
@@ -59,19 +62,6 @@ def add_cortical_surface(nwbfile, pial_files):
         nwbfile.add_acquisition(CorticalSurface(faces=tri, vertices=vert,
                                                 name=name, source=pial_file))
     return nwbfile, names
-
-
-def add_hilbert_series(nwbfile, hilbdir, electrodes):
-    data, rate = readhtks(hilbdir)
-    load_namespaces('/Users/bendichter/dev/to_nwb/to_nwb/chang/time_frequency.namespace.yaml')
-    HilbertSeries = get_class('time_frequency', 'HilbertSeries')
-    hs = HilbertSeries(name='hilbert_series', source=hilbdir, filter_centers=[1., 2., 3.],
-                       filter_sigmas=[1., 2., 3.], data=data, rate=rate, electrodes=electrodes)
-
-    hilb_mod = nwbfile.create_processing_module(name='hilbert', source='na', description='na')
-    hilb_mod.add_container(hs)
-
-    return nwbfile
 
 
 def readhtks(htkpath, elecs=None, use_tqdm=True):
@@ -135,7 +125,6 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
     -------
 
     """
-    manager = get_manager()
 
     basepath, blockname = os.path.split(blockpath)
     subject = get_subject(blockname)
@@ -310,6 +299,18 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
             nwbfile.add_raw_timeseries(bad_timepoints_ts)
 
     pial_files = glob.glob(path.join(mesh_path, '*pial.mat'))
+
+    if hilb:
+        #data, rate = readhtks(hilbdir)
+        data = [1.,2.,3.]
+        rate = 5.
+        hs = HilbertSeries(name='hilbert_series', source=hilbdir, filter_centers=[1., 2., 3.],
+                           filter_sigmas=[1., 2., 3.], data=data, rate=rate, electrodes=all_elecs)
+                           #you must have 1 or more of the following: data (analytic amplidute), real_data, imaginary_data, phase_data)
+
+        hilb_mod = nwbfile.create_processing_module(name='hilbert', source='na', description='na')
+        hilb_mod.add_container(hs)
+
     if cortical_mesh == 'external':
         anat_fpath = path.join(basepath, subject + '_cortical_surface.nwbaux')
         anat_nwbfile = NWBFile(source='',
@@ -334,9 +335,6 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
 
     if include_pitch:
         pass  # add pitch here
-
-    if hilb:
-        nwbfile = add_hilbert_series(nwbfile, hilbdir, all_elecs)
 
 
     # Export the NWB file

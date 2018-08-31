@@ -24,7 +24,7 @@ in_seconds = [0,0,0,3600*24,3600,60,1,1/1000];
 NS_delay = dot(in_seconds,NS.MetaTags.DateTimeRaw - NEV.MetaTags.DateTimeRaw);
 NS_starting_time = NEV_starting_time + NS_delay;
 %%
-date = NEV.MetaTags.DateTimeRaw([1:2,4:7]); % ignore milliseconds
+date = NEV.MetaTags.DateTimeRaw([1:2,4:7]); % ignore milliseconds, and 3rd element?
 
 file = nwbfile( ...
     'source', fname, ...
@@ -39,9 +39,6 @@ file = blackrock.AddNSFile(file, NS, NS_starting_time);
 file = blackrock.AddNEVFile(file, NEV, NEV_starting_time);
 %%
 file = mworks.AddEyePos(file, mwk_path, {'eye_h', 'eye_v'});
-
-
-
 %% write file
 nwbExport(file, nwb_path)
 

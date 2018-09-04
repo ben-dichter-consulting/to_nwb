@@ -25,7 +25,6 @@ groups:
       doc: values that the indices are indexing
       shape:
       - null
-      - 1
     shape:
     - null
 - neurodata_type_def: CatTimeSeries
@@ -41,7 +40,5 @@ groups:
       doc: values that the indices are indexing
       shape:
       - null
-      - 1
     shape:
     - null
-    - 1

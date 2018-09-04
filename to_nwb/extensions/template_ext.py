@@ -1,19 +1,19 @@
-from pynwb.spec import NWBDatasetSpec, NWBNamespaceBuilder, NWBGroupSpec, NWBAttributeSpec
-from pynwb.form.spec import RefSpec
-from pynwb import register_class, load_namespaces, NWBFile, NWBHDF5IO, get_class
-from pynwb.form.utils import docval
-from pynwb.file import Subject as original_Subject, NWBContainer, MultiContainerInterface
+"""
+A cookie-cutter guide for creating your own extension.
+"""
+from pynwb.spec import NWBDatasetSpec, NWBNamespaceBuilder, NWBGroupSpec, NWBAttributeSpec, RefSpec
 
 
-name = 'template [CHANGE TO NAME]'
-ns_path = name + ".namespace.yaml"
-ext_source = name + ".extensions.yaml"
+namespace = 'template [CHANGE TO NAME]'
+ns_path = namespace + ".namespace.yaml"
+ext_source = namespace + ".extensions.yaml"
 
 spec = NWBGroupSpec(
     neurodata_type_def='',
     neurodata_type_inc='NWBDataInterface',
     quantity='?',
     doc='',
+    groups=[],
     attributes=[
         NWBAttributeSpec(name='',
                          doc='',
@@ -32,7 +32,7 @@ spec = NWBGroupSpec(
     ]
 )
 
-ns_builder = NWBNamespaceBuilder(name, name)
+ns_builder = NWBNamespaceBuilder(namespace, namespace)
 
 specs = (spec,)
 for spec in specs:

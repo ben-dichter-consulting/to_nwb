@@ -19,7 +19,7 @@ from .HTK import readHTK
 from ..utils import remove_duplicates
 
 from ..extensions.time_frequency import HilbertSeries
-from ..extensions.ecog import CorticalSurface
+from ..extensions.ecog import Surface, CorticalSurfaces
 
 
 # get_manager must come after dynamic imports
@@ -53,14 +53,17 @@ def gen_htk_num(i):
 def add_cortical_surface(nwbfile, pial_files):
 
     names = []
+    surfaces = []
     for pial_file in pial_files:
         matin = loadmat(pial_file)
         tri = matin['cortex']['tri'][0][0]
         vert = matin['cortex']['vert'][0][0]
         name = pial_file[pial_file.find('Meshes')+7:-4]
         names.append(name)
-        nwbfile.add_acquisition(CorticalSurface(faces=tri, vertices=vert,
-                                                name=name, source=pial_file))
+        surfaces.append(Surface(faces=tri, vertices=vert, name=name,
+                                source=pial_file))
+    nwbfile.add_acquisition(CorticalSurfaces(surfaces=surfaces,
+                                             source=pial_file))
     return nwbfile, names
 
 
@@ -108,16 +111,19 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
         supplied, that is used as the name of the timeseries.
     ecog_format: str
         ({'htk'}, 'mat')
-    cortical_mesh: str, bool (optional)
+    cortical_mesh: str | bool (optional)
+        False: (Default) cortical mesh is not saved
         'internal': cortical mesh is saved normally
         'external': cortical mesh is saved in an external file and a link is
             provided to that file. This is useful if you have multiple sessions for a single subject.
-        False: (Default) cortical mesh is not saved
-    include_pitch: bool
+    include_pitch: bool (optional)
         add pitch data. Default: False
-    speakers: bool
-    mic: bool
+    speakers: bool (optional)
+        Default: False
+    mic: bool (optional)
+        default: False
     mini: only save data stub
+    hilb: bool
     kwargs: dict
         passed to pynwb.NWBFile
 
@@ -145,9 +151,13 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
     lfp_path = path.join(blockpath, 'RawHTK')
     ecog400_path = path.join(blockpath, 'ecog400', 'ecog.mat')
     elec_metadata_file = path.join(basepath, 'imaging', 'elecs', 'TDT_elecs_all.mat')
-    mesh_path = path.join(blockpath, 'imaging', 'Meshes')
     aux_file = path.join(blockpath, 'Analog', 'ANIN4.htk')
     hilbdir = path.join(blockpath, 'HilbAA_70to150_8band')
+    mesh_path = path.join(basepath, 'imaging', 'Meshes')
+    pial_files = glob.glob(path.join(mesh_path, '*pial.mat'))
+    if cortical_mesh and not len(pial_files):
+        raise Warning('pial files not found')
+
 
     # Get metadata for all electrodes
     elecs_metadata = sio.loadmat(elec_metadata_file)
@@ -237,6 +247,8 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
 
             if ekg_elecs:
                 ekg_data = f['ecogDS']['data'][:, ekg_elecs]
+    else:
+        raise ValueError('unrecognized argument: ecog_format')
 
     ts_desc = "all Wav data"
 
@@ -298,15 +310,15 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
         if len(bad_time) > 0:
             nwbfile.add_raw_timeseries(bad_timepoints_ts)
 
-    pial_files = glob.glob(path.join(mesh_path, '*pial.mat'))
-
     if hilb:
-        #data, rate = readhtks(hilbdir)
-        data = [1.,2.,3.]
-        rate = 5.
+        data, rate = readhtks(hilbdir)
+        # you must have 1 or more of the following:
+        #   data (analytic amplitude),
+        #   real_data,
+        #   imaginary_data,
+        #   phase_data
         hs = HilbertSeries(name='hilbert_series', source=hilbdir, filter_centers=[1., 2., 3.],
                            filter_sigmas=[1., 2., 3.], data=data, rate=rate, electrodes=all_elecs)
-                           #you must have 1 or more of the following: data (analytic amplidute), real_data, imaginary_data, phase_data)
 
         hilb_mod = nwbfile.create_processing_module(name='hilbert', source='na', description='na')
         hilb_mod.add_container(hs)
@@ -327,7 +339,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
             nwbfile.add_acquisition(surface_objects)
 
     elif cortical_mesh == 'internal':
-        nwbfile = add_cortical_surface(nwbfile, pial_files)
+        nwbfile, surface_names = add_cortical_surface(nwbfile, pial_files)
     elif cortical_mesh is False:
         pass
     else:
@@ -335,7 +347,6 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
 
     if include_pitch:
         pass  # add pitch here
-
 
     # Export the NWB file
     with NWBHDF5IO(outpath, manager=manager, mode='w') as io:
@@ -372,7 +383,7 @@ def main():
     chang2nwb(**args)
 
 
-chang2nwb('/Users/bendichter/Desktop/Chang/data/EC169/EC169_B7')
+#chang2nwb('/Users/bendichter/Desktop/Chang/data/EC169/EC169_B7')
 
 if __name__ == '__main__':
     main()

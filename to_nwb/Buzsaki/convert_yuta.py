@@ -12,16 +12,16 @@ from pynwb.behavior import SpatialSeries, Position
 from pynwb.ecephys import ElectricalSeries, LFP
 from pynwb.form.data_utils import DataChunkIterator
 from pynwb.form.backends.hdf5.h5_utils import H5DataIO
+from ..extensions.general import CatCellInfo
 from tqdm import tqdm
 
 
 from to_nwb.utils import find_discontinuities
 from to_nwb import neuroscope as ns
-from to_nwb.general import CatCellInfo
 
 from ephys_analysis.analysis import filter_lfp, hilbert_lfp
 
-WRITE_ALL_LFPS = True
+WRITE_ALL_LFPS = False
 
 
 def parse_states(fpath):
@@ -48,82 +48,109 @@ def parse_states(fpath):
     return states, state_times
 
 
-fpath = '/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/YutaMouse41-150903'
-subject_fpath = '/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/YM41 exp_sheet.xlsx'
-fpath_base, fname = os.path.split(fpath)
-identifier = fname
+def yuta2nwb(fpath='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/YutaMouse41-150903',
+             subject_xls='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/YM41 exp_sheet.xlsx',
+             stub=False):
 
-subject_id, date_text = fname.split('-')
-session_start_time = dateparse(date_text, yearfirst=True)
+    fpath_base, fname = os.path.split(fpath)
+    identifier = fname
 
-df = pd.read_excel(subject_fpath)
+    subject_id, date_text = fname.split('-')
+    session_start_time = dateparse(date_text, yearfirst=True)
 
-subject_data = {}
-for key in ['genotype', 'DOB', 'implantation', 'Probe']:
-    subject_data[key] = df.iloc[np.where(df.iloc[:, 0] == key)[0], 1].values[0]
+    df = pd.read_excel(subject_xls)
 
-age = session_start_time - subject_data['DOB']
+    subject_data = {}
+    for key in ['genotype', 'DOB', 'implantation', 'Probe']:
+        subject_data[key] = df.iloc[np.where(df.iloc[:, 0] == key)[0], 1].values[0]
 
-subject = Subject(subject_id=subject_id, age=str(age),
-                  genotype=subject_data['genotype'],
-                  species='mouse', source='source')
+    age = session_start_time - subject_data['DOB']
 
-source = fname
-nwbfile = NWBFile(source=source,
-                  session_description='mouse in open exploration and theta maze',
-                  identifier=identifier,
-                  session_start_time=session_start_time,
-                  file_create_date=datetime.now(),
-                  experimenter='Yuta Senzai',
-                  session_id=fname,
-                  institution='NYU',
-                  lab='Buzsaki',
-                  subject=subject,
-                  related_publications='DOI:10.1016/j.neuron.2016.12.011')
+    subject = Subject(subject_id=subject_id, age=str(age),
+                      genotype=subject_data['genotype'],
+                      species='mouse', source='source')
 
-all_ts = []
+    source = fname
+    nwbfile = NWBFile(source=source,
+                      session_description='mouse in open exploration and theta maze',
+                      identifier=identifier,
+                      session_start_time=session_start_time,
+                      file_create_date=datetime.now(),
+                      experimenter='Yuta Senzai',
+                      session_id=fname,
+                      institution='NYU',
+                      lab='Buzsaki',
+                      subject=subject,
+                      related_publications='DOI:10.1016/j.neuron.2016.12.011')
 
-xml_filepath = os.path.join(fpath, fname + '.xml')
+    all_ts = []
 
-channel_groups = ns.get_channel_groups(xml_filepath)
-shank_channels = ns.get_shank_channels(xml_filepath)
-nshanks = len(shank_channels)
-all_shank_channels = np.concatenate(shank_channels)
-nchannels = sum(len(x) for x in channel_groups)
-lfp_fs = ns.get_lfp_sampling_rate(xml_filepath)
+    xml_filepath = os.path.join(fpath, fname + '.xml')
 
-lfp_channel = 0  # value taken from Yuta's spreadsheet
+    channel_groups = ns.get_channel_groups(xml_filepath)
+    shank_channels = ns.get_shank_channels(xml_filepath)
+    nshanks = len(shank_channels)
+    all_shank_channels = np.concatenate(shank_channels)
+    nchannels = sum(len(x) for x in channel_groups)
+    lfp_fs = ns.get_lfp_sampling_rate(xml_filepath)
 
-print('reading raw position data...', end='', flush=True)
-pos_df = ns.get_position_data(fpath, fname)
-print('done.')
+    lfp_channel = 0  # value taken from Yuta's spreadsheet
 
-print('setting up raw position data...', end='', flush=True)
-# raw position sensors file
-pos0 = nwbfile.add_acquisition(
-    SpatialSeries('position sensor0',
-                  'raw sensor data from sensor 0',
-                  H5DataIO(pos_df[['x0', 'y0']].values, compression='gzip'),
-                  'unknown',
-                  timestamps=H5DataIO(pos_df.index.values, compression='gzip'),
-                  resolution=np.nan))
-all_ts.append(pos0)
+    print('reading raw position data...', end='', flush=True)
+    pos_df = ns.get_position_data(fpath, fname)
+    print('done.')
 
-pos1 = nwbfile.add_acquisition(
-    SpatialSeries('position sensor1',
-                  'raw sensor data from sensor 1',
-                  H5DataIO(pos_df[['x1', 'y1']].values, compression='gzip'),
-                  'unknown',
-                  timestamps=H5DataIO(pos_df.index.values, compression='gzip'),
-                  resolution=np.nan))
-all_ts.append(pos1)
-print('done.')
+    print('setting up raw position data...', end='', flush=True)
+    # raw position sensors file
+    pos0 = nwbfile.add_acquisition(
+        SpatialSeries('position sensor0',
+                      'raw sensor data from sensor 0',
+                      H5DataIO(pos_df[['x0', 'y0']].values, compression='gzip'),
+                      'unknown',
+                      timestamps=H5DataIO(pos_df.index.values, compression='gzip'),
+                      resolution=np.nan))
+    all_ts.append(pos0)
 
-print('setting up electrodes...', end='', flush=True)
-# shank electrodes
-electrode_counter = 0
-for shankn, channels in enumerate(shank_channels):
-    device_name = 'shank{}'.format(shankn)
+    pos1 = nwbfile.add_acquisition(
+        SpatialSeries('position sensor1',
+                      'raw sensor data from sensor 1',
+                      H5DataIO(pos_df[['x1', 'y1']].values, compression='gzip'),
+                      'unknown',
+                      timestamps=H5DataIO(pos_df.index.values, compression='gzip'),
+                      resolution=np.nan))
+    all_ts.append(pos1)
+    print('done.')
+
+    print('setting up electrodes...', end='', flush=True)
+    # shank electrodes
+    electrode_counter = 0
+    for shankn, channels in enumerate(shank_channels):
+        device_name = 'shank{}'.format(shankn)
+        device = nwbfile.create_device(device_name, fname + '.xml')
+        electrode_group = nwbfile.create_electrode_group(
+            name=device_name + '_electrodes',
+            source=fname + '.xml',
+            description=device_name,
+            device=device,
+            location='unknown')
+        for channel in channels:
+            nwbfile.add_electrode(channel,
+                                  np.nan, np.nan, np.nan,  # position?
+                                  imp=np.nan,
+                                  location='unknown',
+                                  filtering='unknown',
+                                  description='electrode {} of shank {}, channel {}'.format(
+                                      electrode_counter, shankn, channel),
+                                  group=electrode_group)
+
+            if channel == lfp_channel:
+                lfp_table_region = nwbfile.create_electrode_table_region(
+                    [electrode_counter], 'lfp electrode')
+
+            electrode_counter += 1
+
+    # special electrodes
+    device_name = 'special'
     device = nwbfile.create_device(device_name, fname + '.xml')
     electrode_group = nwbfile.create_electrode_group(
         name=device_name + '_electrodes',
@@ -131,69 +158,44 @@ for shankn, channels in enumerate(shank_channels):
         description=device_name,
         device=device,
         location='unknown')
-    for channel in channels:
-        nwbfile.add_electrode(channel,
-                              np.nan, np.nan, np.nan,  # position?
+    special_electrode_dict = {'ch_wait': 79, 'ch_arm': 78, 'ch_solL': 76,
+                              'ch_solR': 77, 'ch_dig1': 65, 'ch_dig2': 68,
+                              'ch_entL': 72, 'ch_entR': 71, 'ch_SsolL': 73,
+                              'ch_SsolR': 70}
+    for name, num in special_electrode_dict.items():
+        nwbfile.add_electrode(num,
+                              np.nan, np.nan, np.nan,
                               imp=np.nan,
                               location='unknown',
                               filtering='unknown',
-                              description='electrode {} of shank {}, channel {}'.format(
-                                  electrode_counter, shankn, channel),
+                              description=name,
                               group=electrode_group)
-
-        if channel == lfp_channel:
-            lfp_table_region = nwbfile.create_electrode_table_region(
-                [electrode_counter], 'lfp electrode')
-
+        nwbfile.create_electrode_table_region([electrode_counter], name)
         electrode_counter += 1
 
-# special electrodes
-device_name = 'special'
-device = nwbfile.create_device(device_name, fname + '.xml')
-electrode_group = nwbfile.create_electrode_group(
-    name=device_name + '_electrodes',
-    source=fname + '.xml',
-    description=device_name,
-    device=device,
-    location='unknown')
-special_electrode_dict = {'ch_wait': 79, 'ch_arm': 78, 'ch_solL': 76,
-                          'ch_solR': 77, 'ch_dig1': 65, 'ch_dig2': 68,
-                          'ch_entL': 72, 'ch_entR': 71, 'ch_SsolL': 73,
-                          'ch_SsolR': 70}
-for name, num in special_electrode_dict.items():
-    nwbfile.add_electrode(num,
-                          np.nan, np.nan, np.nan,
-                          imp=np.nan,
-                          location='unknown',
-                          filtering='unknown',
-                          description=name,
-                          group=electrode_group)
-    nwbfile.create_electrode_table_region([electrode_counter], name)
-    electrode_counter += 1
+    all_table_region = nwbfile.create_electrode_table_region(
+        list(range(electrode_counter)), 'all electrodes')
+    print('done.')
 
-all_table_region = nwbfile.create_electrode_table_region(
-    list(range(electrode_counter)), 'all electrodes')
-print('done.')
+    # lfp
+    print('reading LFPs...', end='', flush=True)
 
-# lfp
-print('reading LFPs...', end='', flush=True)
+    if not stub:
+        lfp_file = os.path.join(fpath, fname + '.eeg')
+        all_channels = np.fromfile(lfp_file, dtype=np.int16).reshape(-1, 80)
+        all_channels_lfp = all_channels[:, all_shank_channels]
 
-if False:
-    lfp_file = os.path.join(fpath, fname + '.eeg')
-    all_channels = np.fromfile(lfp_file, dtype=np.int16).reshape(-1, 80)
-    all_channels_lfp = all_channels[:, all_shank_channels]
+        data = DataChunkIterator(tqdm(all_channels_lfp, desc='writing lfp data'),
+                                 buffer_size=int(lfp_fs*3600))
+        data = H5DataIO(data, compression='gzip')
+    else:
+        all_channels = np.random.randn(1000, 100)  # use for dev testing for speed
+        data = all_channels
 
-    data = DataChunkIterator(tqdm(all_channels, desc='writing lfp data'),
-                             buffer_size=int(lfp_fs*3600))
-    data = H5DataIO(data, compression='gzip')
-else:
-    all_channels = np.random.randn(1000, 100)  # use for dev testing for speed
-    data = all_channels
+    print('done.')
 
-print('done.')
-
-print('making ElectricalSeries objects for LFP...', end='', flush=True)
-all_lfp_electrical_series = ElectricalSeries(
+    print('making ElectricalSeries objects for LFP...', end='', flush=True)
+    all_lfp_electrical_series = ElectricalSeries(
         'all_lfp',
         'lfp signal for all shank electrodes',
         data,
@@ -202,185 +204,177 @@ all_lfp_electrical_series = ElectricalSeries(
         starting_time=0.0,
         rate=lfp_fs,
         resolution=np.nan)
-all_ts.append(all_lfp_electrical_series)
-all_lfp = nwbfile.add_acquisition(LFP(name='all_lfp', source='source',
-                                      electrical_series=all_lfp_electrical_series))
-print('done.')
-
-electrical_series = ElectricalSeries(
-    'reference_lfp',
-    'signal used as the reference lfp',
-    H5DataIO(all_channels[:, lfp_channel], compression='gzip'),
-    lfp_table_region,
-    conversion=np.nan,
-    starting_time=0.0,
-    rate=lfp_fs,
-    resolution=np.nan)
-
-lfp = nwbfile.add_acquisition(LFP(source='source', name='reference_lfp',
-                                  electrical_series=electrical_series))
-all_ts.append(electrical_series)
-
-# create epochs corresponding to experiments/environments for the mouse
-task_types = ['OpenFieldPosition_ExtraLarge', 'OpenFieldPosition_New_Curtain',
-              'OpenFieldPosition_New', 'OpenFieldPosition_Old_Curtain',
-              'OpenFieldPosition_Old', 'OpenFieldPosition_Oldlast', 'EightMazePosition']
-
-module_behavior = nwbfile.create_processing_module(name='behavior',
-                                                   source=source,
-                                                   description=source)
-for label in task_types:
-    print('loading normalized position data for ' + label + '...', end='', flush=True)
-    file = os.path.join(fpath, fname + '__' + label)
-
-    matin = loadmat(file)
-    tt = matin['twhl_norm'][:, 0]
-    pos_data = matin['twhl_norm'][:, 1:3]
-
-    exp_times = find_discontinuities(tt)
-
-    spatial_series_object = SpatialSeries(name=label + '_spatial_series',
-                                          source='position sensor0',
-                                          data=H5DataIO(pos_data, compression='gzip'),
-                                          reference_frame='unknown',
-                                          conversion=np.nan,
-                                          resolution=np.nan,
-                                          timestamps=H5DataIO(tt, compression='gzip'))
-    pos_obj = Position(source=source,
-                       spatial_series=spatial_series_object,
-                       name=label + '_position')
-
-    module_behavior.add_container(pos_obj)
-
-    for i, window in enumerate(exp_times):
-        nwbfile.create_epoch(start_time=window[0], stop_time=window[1],
-                             tags=tuple(), description=label + '_' + str(i),
-                             timeseries=all_ts+[spatial_series_object])
+    all_ts.append(all_lfp_electrical_series)
+    nwbfile.add_acquisition(LFP(name='all_lfp', source='source',
+                                electrical_series=all_lfp_electrical_series))
     print('done.')
 
-## load celltypes
-matin = loadmat(os.path.join(fpath_base, 'DG_all_6__UnitFeatureSummary_add.mat'),
-                struct_as_record=False)['UnitFeatureCell'][0][0]
+    electrical_series = ElectricalSeries(
+        'reference_lfp',
+        'signal used as the reference lfp',
+        H5DataIO(all_channels[:, lfp_channel], compression='gzip'),
+        lfp_table_region,
+        conversion=np.nan,
+        starting_time=0.0,
+        rate=lfp_fs,
+        resolution=np.nan)
 
-# taken from ReadMe
-celltype_dict = {
-    0: 'unknown',
-    1: 'granule cells (DG) or pyramidal cells (CA3)  (need to use region info. see below.)',
-    2: 'mossy cell',
-    3: 'narrow waveform cell',
-    4: 'optogenetically tagged SST cell',
-    5: 'wide waveform cell (narrower, exclude opto tagged SST cell)',
-    6: 'wide waveform cell (wider)',
-    8: 'positive waveform unit (non-bursty)',
-    9: 'positive waveform unit (bursty)',
-    10: 'positive negative waveform unit'
-}
+    nwbfile.add_acquisition(LFP(source='source', name='reference_lfp',
+                                electrical_series=electrical_series))
+    all_ts.append(electrical_series)
 
-region_dict = {3: 'CA3', 4: 'DG'}
+    # create epochs corresponding to experiments/environments for the mouse
+    task_types = ['OpenFieldPosition_ExtraLarge', 'OpenFieldPosition_New_Curtain',
+                  'OpenFieldPosition_New', 'OpenFieldPosition_Old_Curtain',
+                  'OpenFieldPosition_Old', 'OpenFieldPosition_Oldlast', 'EightMazePosition']
 
-this_file = matin.fname == fname
-celltype_ids = matin.fineCellType.ravel()[this_file]
-region_ids = matin.region.ravel()[this_file]
-unit_ids = matin.unitID.ravel()[this_file]
-shanks = matin.shank.ravel()[this_file] - 1  # change from 1 to 0-indexing
+    module_behavior = nwbfile.create_processing_module(name='behavior',
+                                                       source=source,
+                                                       description=source)
+    for label in task_types:
+        print('loading normalized position data for ' + label + '...', end='', flush=True)
+        file = os.path.join(fpath, fname + '__' + label)
 
+        matin = loadmat(file)
+        tt = matin['twhl_norm'][:, 0]
+        pos_data = matin['twhl_norm'][:, 1:3]
 
-celltype_names = []
-for celltype_id, region_id in zip(celltype_ids, region_ids):
-    if celltype_id == 1:
-        if region_id == 3:
-            celltype_names.append('pyramidal cell')
-        elif region_id == 4:
-            celltype_names.append('granule cell')
+        exp_times = find_discontinuities(tt)
+
+        spatial_series_object = SpatialSeries(name=label + '_spatial_series',
+                                              source='position sensor0',
+                                              data=H5DataIO(pos_data, compression='gzip'),
+                                              reference_frame='unknown',
+                                              conversion=np.nan,
+                                              resolution=np.nan,
+                                              timestamps=H5DataIO(tt, compression='gzip'))
+        pos_obj = Position(source=source,
+                           spatial_series=spatial_series_object,
+                           name=label + '_position')
+
+        module_behavior.add_container(pos_obj)
+
+        for i, window in enumerate(exp_times):
+            nwbfile.create_epoch(start_time=window[0], stop_time=window[1],
+                                 tags=tuple(), description=label + '_' + str(i),
+                                 timeseries=all_ts+[spatial_series_object])
+        print('done.')
+
+    # load celltypes
+    matin = loadmat(os.path.join(fpath_base, 'DG_all_6__UnitFeatureSummary_add.mat'),
+                    struct_as_record=False)['UnitFeatureCell'][0][0]
+
+    # taken from ReadMe
+    celltype_dict = {
+        0: 'unknown',
+        1: 'granule cells (DG) or pyramidal cells (CA3)  (need to use region info. see below.)',
+        2: 'mossy cell',
+        3: 'narrow waveform cell',
+        4: 'optogenetically tagged SST cell',
+        5: 'wide waveform cell (narrower, exclude opto tagged SST cell)',
+        6: 'wide waveform cell (wider)',
+        8: 'positive waveform unit (non-bursty)',
+        9: 'positive waveform unit (bursty)',
+        10: 'positive negative waveform unit'
+    }
+
+    region_dict = {3: 'CA3', 4: 'DG'}
+
+    this_file = matin.fname == fname
+    celltype_ids = matin.fineCellType.ravel()[this_file]
+    region_ids = matin.region.ravel()[this_file]
+    unit_ids = matin.unitID.ravel()[this_file]
+    shanks = matin.shank.ravel()[this_file] - 1  # change from 1 to 0-indexing
+
+    celltype_names = []
+    for celltype_id, region_id in zip(celltype_ids, region_ids):
+        if celltype_id == 1:
+            if region_id == 3:
+                celltype_names.append('pyramidal cell')
+            elif region_id == 4:
+                celltype_names.append('granule cell')
+            else:
+                raise Exception('unknown type')
         else:
-            raise Exception('unknown type')
-    else:
-        celltype_names.append(celltype_dict[celltype_id])
+            celltype_names.append(celltype_dict[celltype_id])
 
-mono_syn_fpath = os.path.join(fpath, fname + '-MonoSynConvClick.mat')
+    nwbfile.add_unit_column('cell_type', 'name of cell type')
+    nwbfile.add_unit_column('shank', '0-indexed shank number')
 
-matin = loadmat(mono_syn_fpath)
-exc = matin['FinalExcMonoSynID']-1
-inh = matin['FinalInhMonoSynID']-1
+    for unit_id, celltype, shank in zip(unit_ids, celltype_names, shanks):
+        nwbfile.add_unit({'id': unit_id, 'cell_type': celltype, 'shank': shank})
 
-nwbfile.add_unit_column('cell_type', 'name of cell type')
-nwbfile.add_unit_column('shank', '0-indexed shank number')
-nwbfile.add_unit_column('excit_mono_conn', 'ID of unit that has an excitatory mono-synaptic connection')
-nwbfile.add_unit_column('inhib_mono_conn', 'ID of unit that has an inhibitory mono-synaptic connection')
+    ut_obj = ns.build_unit_times(fpath, fname, unit_ids=unit_ids)
 
-for session_unit_id, (unit_id, celltype, shank) in enumerate(zip(unit_ids, celltype_names, shanks)):
-    unit_exc = exc[exc[:, 0] == session_unit_id, 1].ravel()
-    unit_inh = inh[inh[:, 0] == session_unit_id, 1].ravel()
-    print(unit_exc)
-    nwbfile.add_unit({
-        'id': unit_id,
-        'cell_type': celltype,
-        'shank': shank,
-        'excit_mono_conn': unit_exc,
-        #'inhib_mono_conn': unit_inh
-    })
+    module_cellular = nwbfile.create_processing_module('cellular', source=source,
+                                                       description=source)
 
+    module_cellular.add_container(ut_obj)
 
-ut_obj = ns.build_unit_times(fpath, fname, unit_ids=unit_ids)
+    trialdata_path = os.path.join(fpath, fname + '__EightMazeRun.mat')
+    trials_data = loadmat(trialdata_path)['EightMazeRun']
 
-module_cellular = nwbfile.create_processing_module('cellular', source=source,
-                                                   description=source)
+    trialdatainfo_path = os.path.join(fpath, fname + '__EightMazeRunInfo.mat')
+    trialdatainfo = [x[0] for x in loadmat(trialdatainfo_path)['EightMazeRunInfo'][0]]
 
-module_cellular.add_container(ut_obj)
+    features = trialdatainfo[:7]
+    features[:2] = 'start', 'end'
+    [nwbfile.add_trial_column(x, 'description') for x in features]
 
-trialdata_path = os.path.join(fpath, fname + '__EightMazeRun.mat')
-trials_data = loadmat(trialdata_path)['EightMazeRun']
+    for trial_data in trials_data:
+        nwbfile.add_trial({lab: dat for lab, dat in zip(features, trial_data[:7])})
 
-trialdatainfo_path = os.path.join(fpath, fname + '__EightMazeRunInfo.mat')
-trialdatainfo = [x[0] for x in loadmat(trialdatainfo_path)['EightMazeRunInfo'][0]]
+    mono_syn_fpath = os.path.join(fpath, fname+'-MonoSynConvClick.mat')
 
+    matin = loadmat(mono_syn_fpath)
+    exc = matin['FinalExcMonoSynID']
+    inh = matin['FinalInhMonoSynID']
 
-features = trialdatainfo[:7]
-features[:2] = 'start', 'end'
-[nwbfile.add_trial_column(x, 'description') for x in features]
+    exc_obj = CatCellInfo(name='excitatory_connections', source='YutaMouse41-150903-MonoSynConvClick.mat',
+                          values=[], cell_index=exc[:, 0] - 1, indices=exc[:, 1] - 1)
+    module_cellular.add_container(exc_obj)
+    inh_obj = CatCellInfo(name='inhibitory_connections', source='YutaMouse41-150903-MonoSynConvClick.mat',
+                          values=[], cell_index=inh[:, 0] - 1, indices=inh[:, 1] - 1)
+    module_cellular.add_container(inh_obj)
 
-for trial_data in trials_data:
-    nwbfile.add_trial({lab: dat for lab, dat in zip(features, trial_data[:7])})
+    sleep_state_fpath = os.path.join(fpath, fname+'--StatePeriod.mat')
+    matin = loadmat(sleep_state_fpath)['StatePeriod']
 
-sleep_state_fpath = os.path.join(fpath, fname+'--StatePeriod.mat')
-matin = loadmat(sleep_state_fpath)['StatePeriod']
+    table = DynamicTable(name='states', source='source', description='sleep states of animal')
+    table.add_column(name='start', description='start time')
+    table.add_column(name='end', description='end time')
+    table.add_column(name='state', description='sleep state')
 
-table = DynamicTable(name='states', source='source', description='sleep states of animal')
-table.add_column(name='start', description='start time')
-table.add_column(name='end', description='end time')
-table.add_column(name='state', description='sleep state')
+    for name in matin.dtype.names:
+        for row in matin[name][0][0]:
+            table.add_row({'start': row[0], 'end': row[1], 'state': name})
 
-for name in matin.dtype.names:
-    for row in matin[name][0][0]:
-        table.add_row({'start': row[0], 'end': row[1], 'state': name})
+    module_behavior.add_container(table)
 
-module_behavior.add_container(table)
+    # compute filtered LFP
+    module_lfp = nwbfile.create_processing_module(
+        'lfp_mod', source=source, description=source)
 
-# compute filtered LFP
-module_lfp = nwbfile.create_processing_module(
-    'lfp_mod', source=source, description=source)
+    for passband in ('theta', 'gamma'):
+        lfp_fft = filter_lfp(all_channels[:, lfp_channel], np.array(lfp_fs), passband=passband)
+        lfp_phase, _ = hilbert_lfp(lfp_fft)
 
+        time_series = TimeSeries(name=passband + '_phase',
+                                 source='ephys_analysis',
+                                 data=lfp_phase,
+                                 rate=lfp_fs,
+                                 unit='radians')
 
-for passband in ('theta', 'gamma'):
-    lfp_fft = filter_lfp(all_channels[:, lfp_channel], np.array(lfp_fs), passband=passband)
-    lfp_phase, _ = hilbert_lfp(lfp_fft)
+        module_lfp.add_container(time_series)
 
-    time_series = TimeSeries(name=passband + '_phase',
-                             source='ephys_analysis',
-                             data=lfp_phase,
-                             rate=lfp_fs,
-                             unit='radians')
+    out_fname = '/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/' + fname + '_mini.nwb'
+    print('writing NWB file...', end='', flush=True)
+    with NWBHDF5IO(out_fname, mode='w') as io:
+        io.write(nwbfile)
+    print('done.')
 
-    module_lfp.add_container(time_series)
-
-out_fname = '/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/' + fname + '_mini.nwb'
-print('writing NWB file...', end='', flush=True)
-with NWBHDF5IO(out_fname, mode='w') as io:
-    io.write(nwbfile)
-print('done.')
-
-print('testing read...', end='', flush=True)
-# test read
-with NWBHDF5IO(out_fname, mode='r') as io:
-    io.read()
-print('done.')
+    print('testing read...', end='', flush=True)
+    # test read
+    with NWBHDF5IO(out_fname, mode='r') as io:
+        io.read()
+    print('done.')

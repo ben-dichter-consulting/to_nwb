@@ -1,30 +1,30 @@
 groups:
-- doc: triverts for cortical surfaces
+- neurodata_type_def: CorticalSurfaces
+  neurodata_type_inc: NWBDataInterface
+  name: cortical_surfaces
+  doc: triverts for cortical surfaces
   groups:
-  - datasets:
-    - dims:
+  - neurodata_type_def: Surface
+    neurodata_type_inc: NWBDataInterface
+    doc: brain cortical surface
+    datasets:
+    - name: faces
+      dtype: uint
+      doc: faces for surface, indexes vertices
+      dims:
       - face_number
       - vertex_index
-      doc: faces for surface, indexes vertices
-      dtype: uint
-      name: faces
       shape:
       - null
       - 3
-    - dims:
+    - name: vertices
+      dtype: float
+      doc: vertices for surface, points in 3D space
+      dims:
       - vertex_number
       - xyz
-      doc: vertices for surface, points in 3D space
-      dtype: float
-      name: vertices
       shape:
       - null
       - 3
-    doc: brain cortical surface
-    neurodata_type_def: Surface
-    neurodata_type_inc: NWBDataInterface
     quantity: +
-  name: cortical_surfaces
-  neurodata_type_def: CorticalSurfaces
-  neurodata_type_inc: NWBDataInterface
   quantity: '?'

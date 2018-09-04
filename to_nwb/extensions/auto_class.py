@@ -14,6 +14,39 @@ from pynwb.retinotopy import *
 from pynwb.behavior import *
 
 
+def attributes2docval(attributes):
+    """
+    Takes a spec attribute and creates the appropriate docval entry
+    Parameters
+    ----------
+    attributes: dict
+
+    Returns
+    -------
+    tuple: docval entry
+
+    """
+    args_spec = []
+
+    for attrib in attributes:
+        if 'shape' in attrib:
+            _type = Iterable
+        elif attrib.dtype == 'text':
+            _type = str
+        else:
+            _type = attrib.dtype
+
+        arg_spec = {'name': attrib.name, 'type': _type, 'doc': attrib.doc}
+        if 'value' in attrib:
+            arg_spec['default'] = attrib.value
+        elif not attrib.required:
+            arg_spec['default'] = None
+        if not attrib.name == 'help':
+            args_spec.append(arg_spec)
+
+    return args_spec
+
+
 def obj2docval(spec):
     """
     Reads spec and automatically generates teh appropriate docval args for the
@@ -32,21 +65,7 @@ def obj2docval(spec):
     args_spec = []
 
     if 'attributes' in spec:
-        for attrib in spec.attributes:
-            if 'shape' in attrib:
-                _type = Iterable
-            elif attrib.dtype == 'text':
-                _type = str
-            else:
-                _type = attrib.dtype
-
-            arg_spec = {'name': attrib.name, 'type': _type, 'doc': attrib.doc}
-            if 'value' in attrib:
-                arg_spec['default'] = attrib.value
-            elif not attrib.required:
-                arg_spec['default'] = None
-            if not attrib.name == 'help':
-                args_spec.append(arg_spec)
+        args_spec += attributes2docval(spec.attributes)
 
     if 'groups' in spec:
         for group in spec.groups:
@@ -54,6 +73,7 @@ def obj2docval(spec):
             if group.quantity in ('?', '*'):
                 arg_spec['default'] = None
             args_spec.append(arg_spec)
+            args_spec += obj2docval(group)
 
     if 'datasets' in spec:
         for dataset in spec.datasets:
@@ -61,6 +81,8 @@ def obj2docval(spec):
             if dataset.quantity in ('?', '*'):
                 arg_spec['default'] = None
             args_spec.append(arg_spec)
+            if 'attributes' in spec:
+                args_spec += attributes2docval(dataset.attributes)
 
     names = [x['name'] for x in args_spec]
 

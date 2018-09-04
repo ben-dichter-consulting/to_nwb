@@ -282,36 +282,7 @@ load_namespaces(ns_path)
 
 
 
-def camel2underscore(name):
-    s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
-    return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
 
-
-def psuedo_pluralize(name):
-    if not name[-1] == 's':
-        return name + 's'
-    else:
-        return name
-
-
-def get_multi_container(spec):
-    inner_class_name = spec.groups[0]['neurodata_type_def']
-    inner_class = camel2underscore(inner_class_name)
-    InnerClass = eval(inner_class_name)
-
-    @register_class(spec['neurodata_type_def'], name)
-    class AutoClass(MultiContainerInterface):
-        __clsconf__ = {
-            'attr': inner_class + 's',
-            'type': InnerClass,
-            'add': 'add_' + inner_class,
-            'get': 'get_' + inner_class,
-            'create': 'create_' + inner_class,
-        }
-
-        __help = 'container for ' + inner_class + 's'
-
-    return AutoClass
 
 
 @register_class('Surgery', name)

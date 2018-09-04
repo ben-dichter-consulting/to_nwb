@@ -5,9 +5,9 @@ from pynwb.form.utils import docval
 from pynwb.file import Subject as original_Subject, NWBContainer, MultiContainerInterface
 
 
-name = 'time_frequency'
-ns_path = name + ".namespace.yaml"
-ext_source = name + ".extensions.yaml"
+namespace = 'time_frequency'
+ns_path = namespace + ".namespace.yaml"
+ext_source = namespace + ".extensions.yaml"
 
 spec = NWBGroupSpec(
     neurodata_type_def='HilbertSeries',
@@ -27,45 +27,46 @@ spec = NWBGroupSpec(
         NWBDatasetSpec(name='filter_centers',
                        doc='in Hz',
                        dtype='float',
-                       shape=('null', 'null')),
+                       shape=(None,)),
         NWBDatasetSpec(name='filter_sigmas',
                        doc='in Hz',
                        dtype='float',
-                       shape=('null', 'null')),
+                       shape=(None,)),
         NWBDatasetSpec(
             name='data',
             doc='Analytic amplitude of signal',
             dtype='float',
-            shape=('null', 'null', 'null'),
+            shape=(None, None, None),
             dims=('time', 'channel', 'frequency'),
             quantity='?'),
         NWBDatasetSpec(
             name='real_data',
             doc='The real component of the complex result of the hilbert transform',
             dtype='float',
-            shape=('null', 'null', 'null'),
+            shape=(None, None, None),
             dims=('time', 'channel', 'frequency'),
             quantity='?'),
         NWBDatasetSpec(
             name='imaginary_data',
             doc='The imaginary component of the complex result of the hilbert transform',
             dtype='float',
-            shape=('null', 'null', 'null'),
+            shape=(None, None, None),
             dims=('time', 'channel', 'frequency'),
             quantity='?'),
         NWBDatasetSpec(
             name='phase_data',
             doc='The phase of the complex result of the hilbert transform',
             dtype='float',
-            shape=('null', 'null', 'null'),
+            shape=(None, None, None),
             dims=('time', 'channel', 'frequency'),
             quantity='?')
     ]
 )
 
 
-ns_builder = NWBNamespaceBuilder(name, name)
-
+ns_builder = NWBNamespaceBuilder(doc=namespace + ' extensions', name=namespace,
+                                 version='1.0', author='Ben Dichter',
+                                 contact='bendichter@gmail.com')
 specs = (spec,)
 for spec in specs:
     ns_builder.add_spec(ext_source, spec)

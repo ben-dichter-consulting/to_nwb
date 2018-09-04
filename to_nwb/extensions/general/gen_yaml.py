@@ -8,7 +8,7 @@ ext_source = namespace + '.extensions.yaml'
 values = NWBAttributeSpec(name='values',
                           dtype='text',
                           doc='values that the indices are indexing',
-                          shape=(None, 1))
+                          shape=(None,))
 
 cat_cell_info = NWBGroupSpec(
     neurodata_type_def='CatCellInfo',
@@ -34,7 +34,7 @@ cat_timeseries = NWBGroupSpec(
     neurodata_type_inc='TimeSeries',
     doc='Categorical data through time',
     datasets=[NWBDatasetSpec(name='data',
-                             shape=(None, 1), dtype='int',
+                             shape=(None,), dtype='int',
                              doc='timeseries of indicies for values',
                              attributes=[values])])
 

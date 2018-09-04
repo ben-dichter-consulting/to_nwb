@@ -108,21 +108,23 @@ def psuedo_pluralize(name):
         return name
 
 
-def get_multi_container(spec):
-    inner_class_name = spec.groups[0]['neurodata_type_def']
+def get_multi_container(namespace, data_type, InnerClass):
+    inner_class_name = InnerClass.__name__
     inner_class = camel2underscore(inner_class_name)
-    InnerClass = eval(inner_class_name)
 
-    @register_class(spec['neurodata_type_def'], name)
-    class AutoClass(MultiContainerInterface):
-        __clsconf__ = {
-            'attr': inner_class + 's',
-            'type': InnerClass,
-            'add': 'add_' + inner_class,
-            'get': 'get_' + inner_class,
-            'create': 'create_' + inner_class,
-        }
+    __clsconf__ = {
+        'attr': inner_class + 's',
+        'type': InnerClass,
+        'add': 'add_' + inner_class,
+        'get': 'get_' + inner_class,
+        'create': 'create_' + inner_class,
+    }
 
-        __help = 'container for ' + inner_class + 's'
+    __help = 'container for ' + inner_class + 's'
 
-    return AutoClass
+    d = {'__clsconf__': __clsconf__, '__help': __help}
+
+    cls = type(data_type, (MultiContainerInterface,), d)
+    register_class(data_type, namespace, cls)
+
+    return cls

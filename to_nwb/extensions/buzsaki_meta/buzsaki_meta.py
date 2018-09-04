@@ -1,11 +1,22 @@
-from pynwb import load_namespaces, get_class
+from pynwb import load_namespaces
+
+from ..auto_class import get_class, get_multi_container
 
 # load custom classes
-name = 'subject2'
-ns_path = name + '.namespace.yaml'
-ext_source = name + '.extensions.yaml'
+namespace = 'buzsaki_meta'
+ns_path = namespace + '.namespace.yaml'
+ext_source = namespace + '.extensions.yaml'
 load_namespaces(ns_path)
 
-Subject = get_class('Subject2', name)
+BuzSubject = get_class(namespace, 'BuzSubject')
+Histology = get_class(namespace, 'Histology')
+Probe = get_class(namespace, 'Probe')
 
-Subject(genotype='mouse1', species='mouse', )
+VirusInjection = get_class(namespace, 'VirusInjection')
+VirusInjections = get_multi_container(namespace, 'VirusInjections', VirusInjection)
+
+Surgery = get_class(namespace, 'Surgery')
+Surgeries = get_multi_container(namespace, 'Surgeries', Surgery)
+
+Manipulation = get_class(namespace, 'Manipulation')
+Manipulations = get_multi_container(namespace, 'Manipulations', Manipulation)

@@ -13,9 +13,9 @@ from dateutil.parser import parse as parse_date
 import re
 
 
-name = 'buzsaki_meta'
-ns_path = name + ".namespace.yaml"
-ext_source = name + ".extensions.yaml"
+namespace = 'buzsaki_meta'
+ns_path = namespace + ".namespace.yaml"
+ext_source = namespace + ".extensions.yaml"
 
 
 manipulation = NWBGroupSpec(
@@ -213,165 +213,13 @@ optical_fiber = NWBGroupSpec(
     ]
 )
 
-ns_builder = NWBNamespaceBuilder(name + ' extensions', name)
+ns_builder = NWBNamespaceBuilder(doc=namespace + ' extensions', name=namespace,
+                                 version='1.0', author='Ben Dichter',
+                                 contact='bendichter@gmail.com')
 
 specs = (subject, optical_fiber)
 for spec in specs:
     ns_builder.add_spec(ext_source, spec)
 ns_builder.export(ns_path)
 
-
-def obj2docval(spec):
-
-    args_spec = []
-
-    for attrib in spec.attributes:
-        if 'shape' in attrib:
-            _type = list
-        elif attrib.dtype is 'text':
-            _type = str
-        else:
-            _type = attrib.dtype
-
-        arg_spec = {'name': attrib.name, 'type': _type, 'doc': attrib.doc}
-        if not attrib.required:
-            arg_spec['default'] = None
-        if not attrib.name == 'help':
-            args_spec.append(arg_spec)
-
-    for group in spec.groups + spec.datasets:
-        arg_spec = {'name': group.name, 'type': group.neurodata_type_def, 'doc': group.doc}
-        if group.quantity in ('?', '*'):
-            arg_spec['default'] = None
-
-        args_spec.append(arg_spec)
-
-    names = [x['name'] for x in args_spec]
-    super_args = eval(spec['neurodata_type_inc']).__init__.__docval__['args']
-    for x in super_args:
-        if x['name'] not in names:
-            args_spec.append(x)
-
-    return tuple(args_spec)
-
-
-def get_nwbfields(spec):
-    vars = [attrib.name for attrib in spec.attributes if attrib.name]
-    if hasattr(spec, 'datasets'):
-        vars += [dataset.name for dataset in spec.datasets if dataset.name]
-
-    if hasattr(spec, 'groups'):
-        for attrib in spec.groups:
-            if attrib.name:
-                if 'neurodata_type_inc' in attrib or 'neurodata_type_def' in attrib:
-                    vars.append({'name': attrib.name, 'child': True})
-                else:
-                    vars.append(attrib.name)
-
-    return tuple(vars)
-
-####
-
-
-load_namespaces(ns_path)
-
-# load custom classes
-ns_path = name + '.namespace.yaml'
-ext_source = name + '.extensions.yaml'
-load_namespaces(ns_path)
-
-
-
-
-
-
-@register_class('Surgery', name)
-class Surgery(get_class(surgery)):
-    @docval(*obj2docval(surgery))
-    def __init__(self, **kwargs):
-        super(Surgery, self).__init__(**kwargs)
-        if self.surgery_type not in ('chronic', 'acute', None):
-            raise ValueError(self.name + ": surgery_type must be 'chronic' or 'acute'")
-
-        if self.start_datetime:
-            parse_date(self.start_datetime)
-
-        if self.end_datetime:
-            parse_date(self.end_datetime)
-
-
-@register_class('Surgeries', name)
-class Surgeries(get_multi_container(surgeries)):
-    pass
-
-
-@register_class('VirusInjection', name)
-class VirusInjection(get_class(virus_injection)):
-    pass
-
-
-@register_class('VirusInjections', name)
-class VirusInjections(get_multi_container(virus_injections)):
-    pass
-
-
-@register_class('BuzSubject', name)
-class BuzSubject(get_class(subject)):
-    @docval(*obj2docval(subject))
-    def __init__(self, **kwargs):
-        super(BuzSubject, self).__init__(**kwargs)
-        if self.sex not in ('M', 'F', 'U'):
-            raise ValueError('sex must be M (male), F (female) or U (unknown)')
-
-
-@register_class('Histology', name)
-class Histology(get_class(histology)):
-    pass
-
-
-@register_class('OpticalFiber', name)
-class OpticalFiber(get_class(optical_fiber)):
-    pass
-
-
-virus_injections = VirusInjections(source='lab notebook', virus_injections=[
-    VirusInjection(
-        name='virus_injection1', coordinates=[1., 2., 3.], virus='a', volume=.45,
-        source='source', scheme='a')
-])
-
-implantation = Surgery(
-    name='implantation', notes='test surgery', source='lab notebook',
-    virus_injections=virus_injections, anesthesia='a', analgesics='a', antibiotics='a',
-    target_anatomy='CA1', room='35C', surgery_type='chronic',
-    start_datetime=datetime.utcnow().isoformat() + "Z")
-surgeries = Surgeries(source='lab notebook')
-surgeries.add_surgery(implantation)
-
-histology = Histology(
-    name='histology', source='notebook', file_name='007_histology_files', file_name_ext='png',
-    imaging_technique='widefield', slice_plane='Coronal', slice_thickness=100.,
-    location_along_axis=21.4, brain_region_target='CA1', stainings='stainings info',
-    light_source=300., image_scale=300., scale_bar=100., post_processing='Z-stacked',
-    user='name of person', notes='notes')
-
-subject = BuzSubject(
-    subject_id='007', genotype='mouse1', species='mouse', age='3 months', weight='20 g',
-    sex='U', surgeries=surgeries, source='notebook', histology=histology)
-
-nwbfile = NWBFile("source", "a file with metadata", "NB123A", '2018-06-01T00:00:00', subject=subject)
-
-nwbfile.add_device(
-    OpticalFiber(
-        microdrive=0, source='source', name='optical_fiber1', type='type A',
-        core_diameter=.1, outer_diameter=.2, microdrive_lead=2.1, microdrive_id=1))
-
-fname = 'test_ext.nwb'
-with NWBHDF5IO(fname, 'w') as io:
-    io.write(nwbfile)
-
-with NWBHDF5IO(fname, 'r') as io:
-    nwbfile = io.read()
-    print(nwbfile.subject.surgeries.surgerys['implantation'].
-          virus_injections.virus_injections['virus_injection1'].coordinates[:])
 

@@ -32,8 +32,9 @@ spec = NWBGroupSpec(
     ]
 )
 
-ns_builder = NWBNamespaceBuilder(namespace, namespace)
-
+ns_builder = NWBNamespaceBuilder(doc=namespace + ' extensions', name=namespace,
+                                 version='1.0', author='Ben Dichter',
+                                 contact='bendichter@gmail.com')
 specs = (spec,)
 for spec in specs:
     ns_builder.add_spec(ext_source, spec)

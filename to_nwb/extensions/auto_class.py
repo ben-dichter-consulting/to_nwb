@@ -1,38 +1,52 @@
 import re
 
 from pynwb.form.utils import docval
-from pynwb import __NS_CATALOG, register_class, load_namespaces
+from pynwb import __NS_CATALOG
 
 from pynwb.ecephys import *
-# from pynwb.icephys import *
-# from pynwb.file import *
-# from pynwb.device import *
-# from pynwb.misc import *
-# from pynwb.ophys import *
-# from pynwb.ogen import *
-# from pynwb.retinotopy import *
-# from pynwb.behavior import *
+from pynwb.icephys import *
+from pynwb.file import *
+from pynwb.device import *
+from pynwb.misc import *
+from pynwb.ophys import *
+from pynwb.ogen import *
+from pynwb.retinotopy import *
+from pynwb.behavior import *
 
 
 def obj2docval(spec):
+    """
+    Reads spec and automatically generates teh appropriate docval args for the
+    constructor.
+
+    Parameters
+    ----------
+    spec: dict
+
+    Returns
+    -------
+    tuple for docval
+
+    """
 
     args_spec = []
 
-    for attrib in spec.attributes:
-        if 'shape' in attrib:
-            _type = Iterable
-        elif attrib.dtype == 'text':
-            _type = str
-        else:
-            _type = attrib.dtype
+    if 'attributes' in spec:
+        for attrib in spec.attributes:
+            if 'shape' in attrib:
+                _type = Iterable
+            elif attrib.dtype == 'text':
+                _type = str
+            else:
+                _type = attrib.dtype
 
-        arg_spec = {'name': attrib.name, 'type': _type, 'doc': attrib.doc}
-        if 'value' in attrib:
-            arg_spec['default'] = attrib.value
-        elif not attrib.required:
-            arg_spec['default'] = None
-        if not attrib.name == 'help':
-            args_spec.append(arg_spec)
+            arg_spec = {'name': attrib.name, 'type': _type, 'doc': attrib.doc}
+            if 'value' in attrib:
+                arg_spec['default'] = attrib.value
+            elif not attrib.required:
+                arg_spec['default'] = None
+            if not attrib.name == 'help':
+                args_spec.append(arg_spec)
 
     if 'groups' in spec:
         for group in spec.groups:
@@ -59,6 +73,18 @@ def obj2docval(spec):
 
 
 def get_nwbfields(spec):
+    """
+    Reads spec and determines __nwbfields__ which tells pynwb which attributes
+    to write to disk
+    Parameters
+    ----------
+    spec: dict
+
+    Returns
+    -------
+    tuple of variable names
+
+    """
     vars = [attrib.name for attrib in spec.attributes if attrib.name]
     if hasattr(spec, 'datasets'):
         vars += [dataset.name for dataset in spec.datasets if dataset.name]
@@ -75,6 +101,21 @@ def get_nwbfields(spec):
 
 
 def get_class(namespace, data_type):
+    """
+    Generate class with appropriate constructor for any extension class. Will
+    work for all classes, but for MultiContainerInterfaces it is better to use
+    auto_class.get_multi_containter().
+
+    Parameters
+    ----------
+    namespace: str
+    data_type: str
+
+    Returns
+    -------
+    class
+
+    """
     spec = __NS_CATALOG.get_spec(namespace, data_type)
     __nwbfields__ = get_nwbfields(spec)
 
@@ -97,6 +138,17 @@ def get_class(namespace, data_type):
 
 
 def camel2underscore(name):
+    """
+    Converts camelcase to underscore e.g. CamelCase -> camel_case
+    Parameters
+    ----------
+    name: str
+
+    Returns
+    -------
+    str
+
+    """
     s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
 
@@ -109,18 +161,36 @@ def psuedo_pluralize(name):
 
 
 def get_multi_container(namespace, data_type, InnerClass):
+    """
+    Get class for NWBMultiContainerInterface. This is a specific type of class
+    that has convenience functions for holding multiple instances of another
+    class e.g. a Surgeries class that can hold multiple Surgery objects.
+
+    Parameters
+    ----------
+    namespace: str
+    data_type: str
+    InnerClass: class
+        Often gotten using `auto_class.get_class()`
+
+    Returns
+    -------
+    class
+
+    """
     inner_class_name = InnerClass.__name__
     inner_class = camel2underscore(inner_class_name)
+    plural_inner_class = psuedo_pluralize(inner_class)
 
     __clsconf__ = {
-        'attr': inner_class + 's',
+        'attr': plural_inner_class,
         'type': InnerClass,
         'add': 'add_' + inner_class,
         'get': 'get_' + inner_class,
         'create': 'create_' + inner_class,
     }
 
-    __help = 'container for ' + inner_class + 's'
+    __help = 'container for ' + plural_inner_class
 
     d = {'__clsconf__': __clsconf__, '__help': __help}
 

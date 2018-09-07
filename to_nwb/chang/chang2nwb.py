@@ -56,8 +56,14 @@ def add_cortical_surface(nwbfile, pial_files):
     surfaces = []
     for pial_file in pial_files:
         matin = loadmat(pial_file)
-        tri = matin['cortex']['tri'][0][0]
-        vert = matin['cortex']['vert'][0][0]
+        if 'cortex' in matin:
+            x = 'cortex'
+        elif 'mesh' in matin:
+            x = 'mesh'
+        else:
+            raise ValueError('Unknown structure of ' + pial_file + '.')
+        tri = matin[x]['tri'][0][0]
+        vert = matin[x]['vert'][0][0]
         name = pial_file[pial_file.find('Meshes')+7:-4]
         names.append(name)
         surfaces.append(Surface(faces=tri, vertices=vert, name=name,
@@ -90,8 +96,9 @@ def readhtks(htkpath, elecs=None, use_tqdm=True):
 
 def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
               session_description=None, identifier=None, anin4=False,
-              ecog_format='mat', cortical_mesh=False, include_pitch=False,
-              speakers=True, mic=True, mini=False, hilb=False, **kwargs):
+              ecog_format='htk', cortical_mesh=False, include_pitch=False,
+              speakers=True, mic=True, mini=False, hilb=False, verbose=False,
+              **kwargs):
     """
 
     Parameters
@@ -236,9 +243,17 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
 
     # Read electrophysiology data from HTK files and add them to NWB file
     if ecog_format == 'htk':
+        if verbose:
+            print('reading htk acquisition...', flush=True)
         data, rate = readhtks(lfp_path, lfp_elecs)
+        if verbose:
+            print('done', flush=True)
         if ekg_elecs:
             ekg_data, _ = readhtks(lfp_path, ekg_elecs)
+            ekg_ts = TimeSeries('EKG', 'source', H5DataIO(ekg_data, compression='gzip'),
+                                rate=rate, unit='V', conversion=.001,
+                                description='electrotorticography')
+            nwbfile.add_acquisition(ekg_ts)
 
     elif ecog_format == 'mat':
         with File(ecog400_path, 'r') as f:
@@ -260,10 +275,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
                               conversion=0.001)
     nwbfile.add_acquisition(lfp_ts)
 
-    ekg_ts = TimeSeries('EKG', 'source', H5DataIO(ekg_data, compression='gzip'),
-                        rate=rate, unit='V', conversion=.001,
-                        description='electrotorticography')
-    nwbfile.add_acquisition(ekg_ts)
+
 
     if mic:
         # Add microphone recording from room
@@ -333,9 +345,10 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
         with NWBHDF5IO(anat_fpath, manager=manager, mode='w') as anat_io:
             anat_io.write(anat_nwbfile)
 
-        anat_nwbfile = NWBHDF5IO(anat_fpath, manager=manager, mode='r').read()
+        anat_read_io = NWBHDF5IO(anat_fpath, manager=manager, mode='r')
+        anat_nwbfile = anat_read_io.read()
         for pial_name in pial_names:
-            surface_objects = anat_nwbfile.get_acquisition(pial_name)
+            surface_objects = anat_nwbfile.acquisition['cortical_surfaces'].surfaces[pial_name]
             nwbfile.add_acquisition(surface_objects)
 
     elif cortical_mesh == 'internal':
@@ -351,6 +364,9 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
     # Export the NWB file
     with NWBHDF5IO(outpath, manager=manager, mode='w') as io:
         io.write(nwbfile)
+
+    if cortical_mesh == 'external':
+        anat_read_io.close()
 
     # read check
     with NWBHDF5IO(outpath, manager=manager, mode='r') as io:

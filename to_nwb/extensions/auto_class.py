@@ -85,11 +85,11 @@ def obj2docval(spec):
                 args_spec += attributes2docval(dataset.attributes)
 
     names = [x['name'] for x in args_spec]
-
-    super_args = eval(spec['neurodata_type_inc']).__init__.__docval__['args']
-    for x in super_args:
-        if x['name'] not in names:
-            args_spec.append(x)
+    if 'neurodata_type_inc' in spec:
+        super_args = eval(spec['neurodata_type_inc']).__init__.__docval__['args']
+        for x in super_args:
+            if x['name'] not in names:
+                args_spec.append(x)
 
     return tuple(args_spec)
 

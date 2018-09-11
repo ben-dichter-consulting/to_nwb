@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 import scipy.io as sio
 from h5py import File
+import pynwb
 from pynwb import NWBFile, TimeSeries, get_manager, NWBHDF5IO
 from pynwb.ecephys import ElectricalSeries
 from pynwb.form.backends.hdf5 import H5DataIO
@@ -19,7 +20,10 @@ from .HTK import readHTK
 from ..utils import remove_duplicates
 
 from ..extensions.time_frequency import HilbertSeries
-from ..extensions.ecog import Surface, CorticalSurfaces
+
+ecog_ext = pynwb.extensions['ecog']
+Surface = ecog_ext.Surface
+CorticalSurfaces = ecog_ext.CorticalSurfaces
 
 
 # get_manager must come after dynamic imports
@@ -62,7 +66,7 @@ def add_cortical_surface(nwbfile, pial_files):
             x = 'mesh'
         else:
             raise ValueError('Unknown structure of ' + pial_file + '.')
-        tri = matin[x]['tri'][0][0]
+        tri = matin[x]['tri'][0][0] - 1
         vert = matin[x]['vert'][0][0]
         name = pial_file[pial_file.find('Meshes')+7:-4]
         names.append(name)

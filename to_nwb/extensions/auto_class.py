@@ -122,7 +122,8 @@ def get_nwbfields(spec):
     return tuple(vars)
 
 
-def get_class(namespace, data_type, init_add=lambda *args: None):
+def get_class(namespace, data_type, init_pre=lambda *args: None,
+              init_post=lambda *args: None):
     """
     Generate class with appropriate constructor for any extension class. Will
     work for all classes, but for MultiContainerInterfaces it is better to use
@@ -132,7 +133,8 @@ def get_class(namespace, data_type, init_add=lambda *args: None):
     ----------
     namespace: str
     data_type: str
-    init_add: func, optional
+    init_pre: func, optional
+    init_post: func, optional
 
     Returns
     -------
@@ -144,6 +146,7 @@ def get_class(namespace, data_type, init_add=lambda *args: None):
 
     @docval(*obj2docval(spec))
     def __init__(self, **kwargs):
+        init_pre(**kwargs)
         super_args = [x['name'] for x in super(type(self), self).__init__.__docval__['args']]
         super(type(self), self).__init__(**{arg: kwargs[arg] for arg in super_args
                                             if arg in kwargs and kwargs[arg] is not None})
@@ -152,7 +155,7 @@ def get_class(namespace, data_type, init_add=lambda *args: None):
                 setattr(self, attr, val)
             except AttributeError:
                 pass
-        init_add(**kwargs)
+        init_post(**kwargs)
 
     d = {'__init__': __init__, '__nwbfields__': __nwbfields__}
 

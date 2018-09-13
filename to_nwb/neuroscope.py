@@ -3,8 +3,11 @@ import os
 import numpy as np
 import pandas as pd
 from bs4 import BeautifulSoup
-
+from pynwb.ecephys import ElectricalSeries, LFP
+from pynwb.form.backends.hdf5.h5_utils import H5DataIO
+from pynwb.form.data_utils import DataChunkIterator
 from pynwb.misc import UnitTimes
+from tqdm import tqdm
 
 
 def load_xml(filepath):
@@ -177,3 +180,124 @@ def build_unit_times(fpath, fname, shanks=None, name='UnitTimes',
             cell_counter += 1
 
     return ut
+
+
+def write_electrode_table(nwbfile, session_path, electrode_positions=None,
+                          impedences=None, locations=None, filterings=None):
+    """
+
+    Parameters
+    ----------
+    nwbfile; pynwb.NWBFile
+    session_path: str
+    electrode_positions: Iterable(Iterable(float))
+    impedences: Iterable(float)
+    locations: Iterable(str)
+    filterings: Iterable(str)
+
+    Returns
+    -------
+
+    """
+    fpath_base, fname = os.path.split(session_path)
+    xml_filepath = os.path.join(session_path, fname + '.xml')
+
+    shank_channels = get_shank_channels(xml_filepath)
+
+    electrode_counter = 0
+    for shankn, channels in enumerate(shank_channels):
+        device_name = 'shank{}'.format(shankn)
+        device = nwbfile.create_device(device_name, fname + '.xml')
+        electrode_group = nwbfile.create_electrode_group(
+            name=device_name + '_electrodes',
+            source=fname + '.xml',
+            description=device_name,
+            device=device,
+            location='unknown')
+        for channel in channels:
+            if electrode_positions is not None:
+                pos = electrode_positions[channel]
+            else:
+                pos = (np.nan, np.nan, np.nan)
+
+            if impedences is None:
+                imp = np.nan
+            else:
+                imp = impedences[channel]
+
+            if locations is None:
+                location = 'unknown'
+            else:
+                location = locations[channel]
+
+            if filterings is None:
+                filtering = 'unknown'
+            else:
+                filtering = filterings[channel]
+
+            nwbfile.add_electrode(channel, pos[0], pos[1], pos[2], imp=imp,
+                                  location=location, filtering=filtering,
+                                  description='electrode {} of shank {}, channel {}'.format(
+                                      electrode_counter, shankn, channel),
+                                  group=electrode_group)
+
+            electrode_counter += 1
+
+    return nwbfile
+
+
+def write_lfp(nwbfile, session_path, stub=False):
+    """
+    Add LFP from neuroscope to NWB.
+
+    Parameters
+    ----------
+    nwbfile: pynwb.NWBFile
+    session_path: str
+    stub: bool, optional
+        Default is False. If True, don't read LFP, but instead add a small
+        amount of placeholder data. This is useful for rapidly checking new
+        features without the time-intensive data read step.
+
+    Returns
+    -------
+
+    nwbfile
+
+    """
+    fpath_base, fname = os.path.split(session_path)
+    xml_filepath = os.path.join(session_path, fname + '.xml')
+    lfp_filepath = os.path.join(session_path, fname + '.eeg')
+
+    lfp_fs = get_lfp_sampling_rate(xml_filepath)
+    shank_channels = get_shank_channels(xml_filepath)
+    all_shank_channels = np.concatenate(shank_channels)
+
+    nelecs = len(nwbfile.ec_electrodes)
+
+    all_table_region = nwbfile.create_electrode_table_region(
+        list(range(nelecs)), 'all electrodes')
+
+    if stub:
+        data = np.random.randn(1000, 100)  # use for dev testing for speed
+    else:
+        all_channels = np.fromfile(lfp_filepath, dtype=np.int16).reshape(-1, nelecs)
+        all_channels_lfp = all_channels[:, all_shank_channels]
+
+        data = DataChunkIterator(tqdm(all_channels_lfp, desc='writing lfp data'),
+                                 buffer_size=int(lfp_fs * 3600))
+        data = H5DataIO(data, compression='gzip')
+
+    all_lfp_electrical_series = ElectricalSeries(
+        'all_lfp',
+        'lfp signal for all shank electrodes',
+        data,
+        all_table_region,
+        conversion=np.nan,
+        rate=lfp_fs,
+        resolution=np.nan)
+
+    nwbfile.add_acquisition(LFP(name='all_lfp', source='source',
+                                electrical_series=all_lfp_electrical_series))
+
+    return nwbfile

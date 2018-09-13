@@ -4,10 +4,12 @@ import numpy as np
 import pandas as pd
 from bs4 import BeautifulSoup
 from pynwb.ecephys import ElectricalSeries, LFP
+from pynwb.misc import AnnotationSeries
 from pynwb.form.backends.hdf5.h5_utils import H5DataIO
 from pynwb.form.data_utils import DataChunkIterator
 from pynwb.misc import UnitTimes
 from tqdm import tqdm
+from glob import glob
 
 
 def load_xml(filepath):
@@ -65,8 +67,7 @@ def get_lfp_sampling_rate(xml_filepath):
 
     Parameters
     ----------
-    fpath: str
-    fname: str
+    xml_filepath: str
 
     Returns
     -------
@@ -76,14 +77,13 @@ def get_lfp_sampling_rate(xml_filepath):
     return float(load_xml(xml_filepath).lfpSamplingRate.string)
 
 
-def get_position_data(fpath, fname, fs=1250./32.,
+def get_position_data(session_path, fs=1250./32.,
                       names=('x0', 'y0', 'x1', 'y1')):
     """Read raw position sensor data from .whl file
 
     Parameters
     ----------
-    fpath: str
-    fname: str
+    session_path: str
     fs: float
     names: iterable
         names of column headings
@@ -92,8 +92,9 @@ def get_position_data(fpath, fname, fs=1250./32.,
     -------
     df: pandas.DataFrame
     """
+    _, session_name = os.path.split(session_path)
     print('warning: time may not be aligned')
-    df = pd.read_csv(os.path.join(fpath, fname + '.whl'),
+    df = pd.read_csv(os.path.join(session_path, session_name + '.whl'),
                      sep='\t', names=names)
 
     df.index = np.arange(len(df)) / fs
@@ -102,16 +103,14 @@ def get_position_data(fpath, fname, fs=1250./32.,
     return df
 
 
-def get_clusters_single_shank(fpath, fname, shankn, fs=20000):
+def get_clusters_single_shank(session_path, shankn, fs=20000):
     """Read the spike time data for a from the .res and .clu files for a single
     shank. Automatically removes noise and multi-unit.
 
     Parameters
     ----------
-    fpath: path
-        file path
-    fname: path
-        file name
+    session_path: str | path
+        session path
     shankn: int
         shank number
 
@@ -122,8 +121,10 @@ def get_clusters_single_shank(fpath, fname, shankn, fs=20000):
         indicates spike time.
 
     """
-    timing_file = os.path.join(fpath, fname + '.res.' + str(shankn))
-    id_file = os.path.join(fpath, fname + '.clu.' + str(shankn))
+
+    _, session_name = os.path.split(session_path)
+    timing_file = os.path.join(session_path, session_name + '.res.' + str(shankn))
+    id_file = os.path.join(session_path, session_name + '.clu.' + str(shankn))
 
     timing_df = pd.read_csv(timing_file, names=('time',))
     id_df = pd.read_csv(id_file, names=('id',))
@@ -138,14 +139,13 @@ def get_clusters_single_shank(fpath, fname, shankn, fs=20000):
     return df
 
 
-def build_unit_times(fpath, fname, shanks=None, name='UnitTimes',
-                     source=None, unit_ids=None):
+def build_unit_times(session_path, shanks=None, name='UnitTimes', source=None,
+                     unit_ids=None):
     """
 
     Parameters
     ----------
-    fpath: str
-    fname: str
+    session_path: str
     shanks: None | list(ints)
         shank numbers to process. If None, use 1:8
     name: str
@@ -158,19 +158,17 @@ def build_unit_times(fpath, fname, shanks=None, name='UnitTimes',
 
     """
 
-    fnamepath = os.path.join(fpath, fname)
-
     if shanks is None:
         shanks = range(1, 9)
 
     if source is None:
-        source = fnamepath + '.res.*; ' + fnamepath + '.clu.*'
+        source = session_path
 
     ut = UnitTimes(name=name, source=source)
 
     cell_counter = 0
     for shank_num in shanks:
-        df = get_clusters_single_shank(fpath, fname, shank_num)
+        df = get_clusters_single_shank(session_path, shank_num)
         for cluster_num, idf, in df.groupby('id'):
             if unit_ids is not None:
                 unit_id = unit_ids[cell_counter]
@@ -301,3 +299,28 @@ def write_lfp(nwbfile, session_path, stub=False):
                                 electrical_series=all_lfp_electrical_series))
 
     return nwbfile
+
+
+def write_events(nwbfile, session_path, suffixes=None):
+    _, session_name = os.path.split(session_path)
+
+    if suffixes is None:
+        evt_files = glob(os.path.join(session_path, session_name) + '.evt.*') + \
+                    glob(os.path.join(session_path, session_name) + '.*.evt')
+    else:
+        evt_files = [os.path.join(session_path, session_name + s)
+                     for s in suffixes]
+    ann_mod = nwbfile.create_processing_module(
+        'annotations', source=session_path, description='evt files')
+    for evt_file in evt_files:
+        name = evt_file[-3:]
+        df = pd.read_csv(evt_file, sep='\t', names=('time', 'desc'))
+        timestamps = df.values[:, 0].astype(float) / 1000
+        data = df['desc'].values
+        annotation_series = AnnotationSeries(
+            name=name, source=evt_file, data=data, timestamps=timestamps)
+        ann_mod.add_container(annotation_series)
+
+
+
+

@@ -147,7 +147,8 @@ def build_unit_times(session_path, shanks=None, name='UnitTimes', source=None,
     ----------
     session_path: str
     shanks: None | list(ints)
-        shank numbers to process. If None, use 1:8
+        shank numbers to process. If None, attempt to automatically determine
+        the number of shanks
     name: str
     source: str
     unit_ids: array-like if ints, optional
@@ -157,9 +158,10 @@ def build_unit_times(session_path, shanks=None, name='UnitTimes', source=None,
     -------
 
     """
-
+    session_name = os.path.split(session_path)[1]
     if shanks is None:
-        shanks = range(1, 9)
+        shanks = [x[-1] for x in
+                  glob(os.path.join(session_path, session_name + 'res.*'))]
 
     if source is None:
         source = session_path

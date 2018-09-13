@@ -302,6 +302,20 @@ def write_lfp(nwbfile, session_path, stub=False):
 
 
 def write_events(nwbfile, session_path, suffixes=None):
+    """
+
+    Parameters
+    ----------
+    nwbfile: pynwb.NWBFile
+    session_path: str
+    suffixes: Iterable(str), optional
+
+    Returns
+    -------
+
+    nwbfile
+
+    """
     _, session_name = os.path.split(session_path)
 
     if suffixes is None:
@@ -321,6 +335,4 @@ def write_events(nwbfile, session_path, suffixes=None):
             name=name, source=evt_file, data=data, timestamps=timestamps)
         ann_mod.add_container(annotation_series)
 
-
-
-
+    return nwbfile

@@ -1,9 +1,12 @@
+"""
+Author: Ben Dichter
+"""
 import os
 
 import numpy as np
 import pandas as pd
 from bs4 import BeautifulSoup
-from pynwb.ecephys import ElectricalSeries, LFP
+from pynwb.ecephys import ElectricalSeries, LFP, SpikeEventSeries, Clustering
 from pynwb.misc import AnnotationSeries
 from pynwb.form.backends.hdf5.h5_utils import H5DataIO
 from pynwb.form.data_utils import DataChunkIterator
@@ -85,6 +88,7 @@ def get_position_data(session_path, fs=1250./32.,
     ----------
     session_path: str
     fs: float
+        sampling rate
     names: iterable
         names of column headings
 
@@ -103,7 +107,54 @@ def get_position_data(session_path, fs=1250./32.,
     return df
 
 
-def get_clusters_single_shank(session_path, shankn, fs=20000):
+def read_spike_times(session_path, shankn, fs=20000.):
+    """
+    Read .res files
+
+    Parameters
+    ----------
+    session_path str | path
+    shankn: int
+        shank number (1-indexed)
+    fs: float
+        sampling rate. default = 20000.
+
+    Returns
+    -------
+
+    """
+    _, session_name = os.path.split(session_path)
+    timing_file = os.path.join(session_path, session_name + '.res.' + str(shankn))
+    timing_df = pd.read_csv(timing_file, names=('time',))
+
+    return timing_df.values.ravel() / fs
+
+
+def read_spike_clustering(session_path, shankn):
+    """
+    Read .clu files to get spike cluster assignments for a single shank
+
+    Parameters
+    ----------
+    session_path: str | path
+    shankn: int
+        shank number (1-indexed)
+
+    Returns
+    -------
+    np.ndarray
+
+
+    """
+    _, session_name = os.path.split(session_path)
+    id_file = os.path.join(session_path, session_name + '.clu.' + str(shankn))
+    id_df = pd.read_csv(id_file, names=('id',))
+    id_df = id_df[1:]  # the first number is the number of clusters
+
+    return id_df.values.ravel()
+
+
+def get_clusters_single_shank(session_path, shankn, fs=20000.):
     """Read the spike time data for a from the .res and .clu files for a single
     shank. Automatically removes noise and multi-unit.
 
@@ -113,6 +164,7 @@ def get_clusters_single_shank(session_path, shankn, fs=20000):
         session path
     shankn: int
         shank number
+    fs: float
 
     Returns
     -------
@@ -123,20 +175,28 @@ def get_clusters_single_shank(session_path, shankn, fs=20000):
     """
 
     _, session_name = os.path.split(session_path)
-    timing_file = os.path.join(session_path, session_name + '.res.' + str(shankn))
-    id_file = os.path.join(session_path, session_name + '.clu.' + str(shankn))
-
-    timing_df = pd.read_csv(timing_file, names=('time',))
-    id_df = pd.read_csv(id_file, names=('id',))
-    id_df = id_df[1:]  # the first number is the number of clusters
-    noise_inds = ((id_df == 0) | (id_df == 1)).values.ravel()
-    df = id_df.join(timing_df)
+    spike_times = read_spike_times(session_path, shankn, fs=fs)
+    spike_ids = read_spike_clustering(session_path, shankn)
+    df = pd.DataFrame({'id': spike_ids, 'time': spike_times})
+    noise_inds = ((df.iloc[:, 0] == 0) | (df.iloc[:, 0] == 1)).values.ravel()
     df = df.loc[np.logical_not(noise_inds)].reset_index(drop=True)
-    df['time'] = df['time'] / fs
 
     df['id'] -= 2
 
     return df
+
+
+def write_clustering(module_cellular, session_path, shanks, fs=20000.):
+    for shankn in shanks:
+        df = get_clusters_single_shank(session_path, shankn, fs=fs)
+        clustering = Clustering(
+            name='shank' + str(shankn) + ' clusters', source=session_path,
+            description='shank' + str(shankn), num=df['id'].values,
+            peak_over_rms=[], times=df['time'].values)
+
+        module_cellular.add_container(clustering)
+
+    return module_cellular
 
 
 def build_unit_times(session_path, shanks=None, name='UnitTimes', source=None,
@@ -161,7 +221,7 @@ def build_unit_times(session_path, shanks=None, name='UnitTimes', source=None,
     session_name = os.path.split(session_path)[1]
     if shanks is None:
         shanks = [x[-1] for x in
-                  glob(os.path.join(session_path, session_name + 'res.*'))]
+                  glob(os.path.join(session_path, session_name + '.res.*'))]
 
     if source is None:
         source = session_path
@@ -205,13 +265,13 @@ def write_electrode_table(nwbfile, session_path, electrode_positions=None,
     shank_channels = get_shank_channels(xml_filepath)
 
     electrode_counter = 0
+    device = nwbfile.create_device('device', fname + '.xml')
     for shankn, channels in enumerate(shank_channels):
-        device_name = 'shank{}'.format(shankn)
-        device = nwbfile.create_device(device_name, fname + '.xml')
+        shankn += 1
         electrode_group = nwbfile.create_electrode_group(
-            name=device_name + '_electrodes',
+            name='shank{}'.format(shankn),
             source=fname + '.xml',
-            description=device_name,
+            description='shank{} electrodes'.format(shankn),
             device=device,
             location='unknown')
         for channel in channels:
@@ -311,6 +371,7 @@ def write_events(nwbfile, session_path, suffixes=None):
     nwbfile: pynwb.NWBFile
     session_path: str
     suffixes: Iterable(str), optional
+        The 3-letter names for the events to write. If None, detect all in session_path
 
     Returns
     -------
@@ -338,3 +399,40 @@ def write_events(nwbfile, session_path, suffixes=None):
         ann_mod.add_container(annotation_series)
 
     return nwbfile
+
+
+def write_spike_waveforms(nwbfile, session_path, shankn):
+    """
+
+    Parameters
+    ----------
+    nwbfile: pynwb.NWBFiles
+    session_path: str
+    shankn: int
+
+    Returns
+    -------
+
+    """
+
+    _, session_name = os.path.split(session_path)
+    xml_filepath = os.path.join(session_path, session_name + '.xml')
+    soup = load_xml(xml_filepath)
+    nsamps = float(soup.spikes.nSamples.string)
+
+    spk_file = os.path.join(session_path, session_name + '.spk.' + str(shankn))
+    group_name = 'shank' + str(shankn)
+
+    elec_idx = np.where(np.array(nwbfile.ec_electrodes['group_name']) == group_name)[0]
+
+    nchan = len(elec_idx)
+
+    table_region = nwbfile.create_electrode_table_region(elec_idx, group_name)
+
+    get_shank_channels(xml_filepath)
+    spks = np.fromfile(spk_file, dtype=np.int16).reshape(-1, nsamps, nchan)
+
+    spike_times = read_spike_times(session_path, shankn)
+
+    SpikeEventSeries(name='spike_waveforms', source=session_path, data=spks,
+                     timestamps=spike_times, electrodes=table_region)

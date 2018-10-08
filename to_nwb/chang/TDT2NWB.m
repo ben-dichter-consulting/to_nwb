@@ -79,10 +79,10 @@ for i = 1:length(mesh_file_list)
     mesh_file = mesh_file_list{i};
     surf_load = load(fullfile(mesh_dir, mesh_file));
     if isfield(surf_load,'mesh')
-        faces = surf_load.mesh.tri - 1; % faces stored as 1-indexed in nwbext_ecog
+        faces = surf_load.mesh.tri - 1; % faces stored as 0-indexed in nwbext_ecog
         vertices = surf_load.mesh.vert;
     elseif isfield(surf_load,'cortex')
-        faces = surf_load.cortex.tri - 1; % faces stored as 1-indexed in nwbext_ecog
+        faces = surf_load.cortex.tri - 1; % faces stored as 0-indexed in nwbext_ecog
         vertices = surf_load.cortex.vert;
     else
         keyboard

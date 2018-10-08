@@ -1,10 +1,11 @@
 blockpath = '/Users/bendichter/Desktop/Chang/data/TDTBackup/EC125_B22';
-elecspath = '/Users/bendichter/Desktop/Chang/data/EC125/Imaging/elecs/TDT_elecs_all.mat';
+imaging_path = '/Users/bendichter/Desktop/Chang/data/EC125/Imaging';
+elecspath = fullfile(imaging_path, 'elecs', 'TDT_elecs_all.mat');
+hilb_hg_path = '/Users/bendichter/Desktop/Chang/data/EC125/EC125_B22/HilbAA_70to150_8band';
 
 [basepath, blockname] = fileparts(blockpath);
 
 nwb_path = fullfile(basepath, [blockname '.nwb']);
-
 %%
 tdt = TDTbin2mat(blockpath);
 
@@ -19,62 +20,11 @@ file = nwbfile( ...
     'file_create_date', datestr(now, 'yyyy-mm-dd HH:MM:SS'));
 %% Electrode Table
 
-elecs = load(elecspath, 'anatomy', 'elecmatrix');
-location = {elecs.anatomy{:,4}};
-x = elecs.elecmatrix(:,1);
-y = elecs.elecmatrix(:,2);
-z = elecs.elecmatrix(:,3);
-label = {elecs.anatomy{:,2}};
+[file, ecog_channels] = elecs2ElectrodeTable(file, elecspath);
 
-
-device_labels = {};
-for i = 1:length(elecs.anatomy)
-    this_label = label{i};
-    device_labels{i} = this_label(1:strfind(this_label, 'Electrode')-1);
-end
-
-udevice_labels = unique(device_labels, 'stable');
-
-variables = {'id', 'x', 'y', 'z', 'imp', 'location', 'filtering', ...
-    'description', 'group', 'group_name'};
-for i_device = 1:length(udevice_labels)
-    device_label = udevice_labels{i_device};
-    if ~isempty(device_label) % take care of 'NaN' label
-        
-        file.general_devices.set(device_label,...
-            types.core.Device('source', blockpath));
-        
-        file.general_extracellular_ephys.set(device_label,...
-            types.core.ElectrodeGroup('source', blockpath, ...
-            'description', 'a test ElectrodeGroup', ...
-            'location', 'unknown', ...
-            'device', types.untyped.SoftLink(['/general/devices/' device_label])));
-        
-        ov = types.untyped.ObjectView(['/general/extracellular_ephys/' device_label]);
-        
-        elec_nums = find(strcmp(device_labels, device_label));
-        for i_elec = 1:length(elec_nums)
-            elec_num = elec_nums(i_elec);
-            if i_device == 1 && i_elec == 1
-                tbl = table(int64(1), x(1), y(1), z(1), NaN, location(1), {'filtering'}, ...
-                    label(1), ov, {'electrode_group'},...
-                    'VariableNames', variables);
-            else
-                tbl = [tbl; {int64(elec_num), x(elec_num), y(elec_num), z(elec_num), NaN,...
-                    location{elec_num}, 'filtering', label{elec_num}, ov, 'electrode_group'}];
-            end
-        end
-        
-    end
-end
-
-et = types.core.ElectrodeTable('data', tbl);
-file.general_extracellular_ephys.set('electrodes', et);
-
-%% Electrode Table Region
-
+x = height(file.general_extracellular_ephys.get('electrodes').data);
 rv = types.untyped.RegionView('/general/extracellular_ephys/electrodes',...
-    {[1 length(x)]});
+    {[1 x]});
 
 etr = types.core.ElectrodeTableRegion('data', rv);
 
@@ -89,7 +39,7 @@ for i = 1:length(ecog_stream_names)
     stream = tdt.streams.(ecog_stream_names{i});
     Data = [Data, stream.data'];
 end
-Data = Data(:,~strcmp(device_labels,''));
+Data = Data(:, ecog_channels);
 
 es = types.core.ElectricalSeries('source', blockpath,...
     'starting_time',stream.startTime,...
@@ -98,7 +48,7 @@ es = types.core.ElectricalSeries('source', blockpath,...
     'electrodes', etr,...
     'data_unit','V');
 
-file.acquisition.set('lfp', es);
+file.acquisition.set('ECoG', es);
 
 
 %% ANIN
@@ -116,6 +66,60 @@ for i = 1:length(labels)
     file.acquisition.set(labels{i}, ts);
 end
 
+%% Cortical Surface
+% generateExtension('/Users/bendichter/dev/nwbext_ecog/nwbext_ecog/ecog.namespace.yaml');
+
+mesh_dir = fullfile(imaging_path, 'Meshes');
+mesh_file_list = dir([mesh_dir '/*_pial.mat']);
+mesh_file_list = {mesh_file_list.name};
+
+cortical_surfaces = types.ecog.CorticalSurfaces;
+
+for i = 1:length(mesh_file_list)
+    mesh_file = mesh_file_list{i};
+    surf_load = load(fullfile(mesh_dir, mesh_file));
+    if isfield(surf_load,'mesh')
+        faces = surf_load.mesh.tri' - 1; % faces stored as 1-indexed in nwbext_ecog
+        vertices = surf_load.mesh.vert;
+    elseif isfield(surf_load,'cortex')
+        faces = surf_load.cortex.tri' - 1; % faces stored as 1-indexed in nwbext_ecog
+        vertices = surf_load.cortex.vert;
+    else
+        keyboard
+    end
+    surf = types.ecog.Surface('source', mesh_file, ...
+        'faces', faces, 'vertices', vertices);
+    surf_name = mesh_file(find(mesh_file == '_', 1)+1 : end-9);
+    cortical_surfaces.surface.set(surf_name, surf);
+end
+
+file.acquisition.set('CorticalSurfaces', cortical_surfaces);
+
+
+%% Hilbert AA
+% generateExtension('/Users/bendichter/dev/to_nwb/to_nwb/extensions/time_frequency/time_frequency.namespace.yaml');
+hilbert = types.core.ProcessingModule( ...
+        'source', 'a source for a ProcessingModule', ...
+        'description', 'a module');
+    
+%%
+
+data = readhtks(hilb_hg_path,[],[],1);
+
+filter_centers = [70.66172888, 78.01687387,  86.13761233, 95.1036345 , ...
+    105.00292557, 115.93262903, 128., 141.32345775];
+filter_sigmas = [3.43753263, 3.61201023, 3.79534373, 3.98798262, ...
+    4.19039921, 4.40308979, 4.62657583, 4.86140527];
+
+hilb_series = types.time_frequency.HilbertSeries(...
+    'source', 'source',...
+    'filter_centers', filter_centers, ...
+    'filter_sigmas', filter_sigmas, ...
+    'data', data, ...
+    'electrodes', etr);
+    
+hilbert.nwbdatainterface.set('HilbertAA',hilb_series);  
+file.processing.set('hilbert', hilbert);
 
 
 %% write file

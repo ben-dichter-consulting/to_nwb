@@ -48,7 +48,7 @@ def parse_states(fpath):
 
 
 def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/YutaMouse41/YutaMouse41-150903',
-             subject_xls=None, stub=False):
+             subject_xls=None, include_all_lfp=False):
 
 
     subject_path, session_name = os.path.split(session_path)
@@ -100,7 +100,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     pos_df = ns.get_position_data(session_path)
     print('done.')
 
-    print('setting up raw position data...', end='', flush=True)
+    print('writing raw position data...', end='', flush=True)
     # raw position sensors file
     pos0 = nwbfile.add_acquisition(
         SpatialSeries('position sensor0',
@@ -177,33 +177,29 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
 
     # lfp
     print('reading LFPs...', end='', flush=True)
+    lfp_file = os.path.join(session_path, session_name + '.eeg')
+    all_channels = np.fromfile(lfp_file, dtype=np.int16).reshape(-1, 80)
+    all_channels_lfp = all_channels[:, all_shank_channels]
 
-    if not stub:
-        lfp_file = os.path.join(session_path, session_name + '.eeg')
-        all_channels = np.fromfile(lfp_file, dtype=np.int16).reshape(-1, 80)
-        all_channels_lfp = all_channels[:, all_shank_channels]
-
+    if include_all_lfp:
         data = DataChunkIterator(tqdm(all_channels_lfp, desc='writing lfp data'),
                                  buffer_size=int(lfp_fs*3600))
         data = H5DataIO(data, compression='gzip')
-    else:
-        all_channels = np.random.randn(1000, 100)  # use for dev testing for speed
-        data = all_channels
 
-    print('done.')
+        print('making ElectricalSeries objects for LFP...', end='', flush=True)
+        all_lfp_electrical_series = ElectricalSeries(
+            'all_lfp',
+            'lfp signal for all shank electrodes',
+            data,
+            all_table_region,
+            conversion=np.nan,
+            rate=lfp_fs,
+            resolution=np.nan)
+        all_ts.append(all_lfp_electrical_series)
+        nwbfile.add_acquisition(LFP(name='all_lfp', source='source',
+                                    electrical_series=all_lfp_electrical_series))
+        print('done.')
 
-    print('making ElectricalSeries objects for LFP...', end='', flush=True)
-    all_lfp_electrical_series = ElectricalSeries(
-        'all_lfp',
-        'lfp signal for all shank electrodes',
-        data,
-        all_table_region,
-        conversion=np.nan,
-        rate=lfp_fs,
-        resolution=np.nan)
-    all_ts.append(all_lfp_electrical_series)
-    nwbfile.add_acquisition(LFP(name='all_lfp', source='source',
-                                electrical_series=all_lfp_electrical_series))
     print('done.')
 
     electrical_series = ElectricalSeries(
@@ -226,7 +222,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
 
         file = os.path.join(session_path, session_name + '__' + label + '.mat')
         if os.path.isfile(file):
-            print('loading normalized position data for ' + label + '...', end='', flush=True)
+            print('loading normalized position for ' + label + '...', end='', flush=True)
 
             matin = loadmat(file)
             tt = matin['twhl_norm'][:, 0]
@@ -245,6 +241,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
                 timestamps=H5DataIO(tt, compression='gzip'))
 
             if 'twhl_linearized' in matin:
+                print('loading linearized position...', end='', flush=True)
                 pos_data_linearized = matin['twhl_linearized'][:, 1:]
 
                 # each arm is 102 cm. This converts to meters
@@ -380,8 +377,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
         module_lfp.add_container(time_series)
 
     out_fname = session_path + '.nwb'
-    if stub:
-        out_fname = out_fname[:-4] + '_stub.nwb'
+
     print('writing NWB file...', end='', flush=True)
     with NWBHDF5IO(out_fname, mode='w') as io:
         io.write(nwbfile)

@@ -224,7 +224,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
         name='behavior', source=source, description=source)
     for label in task_types:
 
-        file = os.path.join(session_path, session_name + '__' + label)
+        file = os.path.join(session_path, session_name + '__' + label + '.mat')
         if os.path.isfile(file):
             print('loading normalized position data for ' + label + '...', end='', flush=True)
 

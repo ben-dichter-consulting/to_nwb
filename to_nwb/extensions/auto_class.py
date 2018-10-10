@@ -41,6 +41,8 @@ def attributes2docval(attributes):
             arg_spec['default'] = attrib.value
         elif not attrib.required:
             arg_spec['default'] = None
+        if 'shape' in attrib:
+            arg_spec['shape'] = attrib.shape
         if not attrib.name == 'help':
             args_spec.append(arg_spec)
 
@@ -78,6 +80,8 @@ def obj2docval(spec):
     if 'datasets' in spec:
         for dataset in spec.datasets:
             arg_spec = {'name': dataset.name, 'type': Iterable, 'doc': dataset.doc}
+            if 'shape' in spec:
+                arg_spec['shape'] = dataset.shape
             if dataset.quantity in ('?', '*'):
                 arg_spec['default'] = None
             args_spec.append(arg_spec)
@@ -122,8 +126,8 @@ def get_nwbfields(spec):
     return tuple(vars)
 
 
-def get_class(namespace, data_type, init_pre=lambda *args: None,
-              init_post=lambda *args: None):
+def get_class(namespace, data_type, init_pre=lambda **kwargs: None,
+              init_post=lambda **kwargs: None):
     """
     Generate class with appropriate constructor for any extension class. Will
     work for all classes, but for MultiContainerInterfaces it is better to use

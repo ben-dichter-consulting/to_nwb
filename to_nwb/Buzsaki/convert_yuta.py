@@ -223,9 +223,10 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     module_behavior = nwbfile.create_processing_module(
         name='behavior', source=source, description=source)
     for label in task_types:
-        print('loading normalized position data for ' + label + '...', end='', flush=True)
+
         file = os.path.join(session_path, session_name + '__' + label)
         if os.path.isfile(file):
+            print('loading normalized position data for ' + label + '...', end='', flush=True)
 
             matin = loadmat(file)
             tt = matin['twhl_norm'][:, 0]
@@ -266,7 +267,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
                 nwbfile.create_epoch(start_time=window[0], stop_time=window[1],
                                      tags=tuple(), description=label + '_' + str(i),
                                      timeseries=[])
-        print('done.')
+            print('done.')
 
     # load celltypes
     matin = loadmat(os.path.join(fpath_base, 'DG_all_6__UnitFeatureSummary_add.mat'),
@@ -322,7 +323,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     trialdata_path = os.path.join(session_path, session_name + '__EightMazeRun.mat')
     trials_data = loadmat(trialdata_path)['EightMazeRun']
 
-    trialdatainfo_path = os.path.join(session_path, session_name + '__EightMazeRunInfo.mat')
+    trialdatainfo_path = os.path.join(fpath_base, 'EightMazeRunInfo.mat')
     trialdatainfo = [x[0] for x in loadmat(trialdatainfo_path)['EightMazeRunInfo'][0]]
 
     features = trialdatainfo[:7]

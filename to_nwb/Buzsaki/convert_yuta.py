@@ -215,35 +215,52 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
                   'OpenFieldPosition_New', 'OpenFieldPosition_Old_Curtain',
                   'OpenFieldPosition_Old', 'OpenFieldPosition_Oldlast', 'EightMazePosition']
 
-    module_behavior = nwbfile.create_processing_module(name='behavior',
-                                                       source=source,
-                                                       description=source)
+    module_behavior = nwbfile.create_processing_module(
+        name='behavior', source=source, description=source)
     for label in task_types:
         print('loading normalized position data for ' + label + '...', end='', flush=True)
         file = os.path.join(session_path, session_name + '__' + label)
+        if os.path.isfile(file):
 
-        matin = loadmat(file)
-        tt = matin['twhl_norm'][:, 0]
-        pos_data = matin['twhl_norm'][:, 1:3]
+            matin = loadmat(file)
+            tt = matin['twhl_norm'][:, 0]
+            exp_times = find_discontinuities(tt)
 
-        exp_times = find_discontinuities(tt)
+            pos_data_norm = matin['twhl_norm'][:, 1:]
 
-        spatial_series_object = SpatialSeries(
-            name=label + '_spatial_series', source='position sensor0',
-            data=H5DataIO(pos_data, compression='gzip'),
-            reference_frame='unknown', conversion=np.nan, resolution=np.nan,
-            timestamps=H5DataIO(tt, compression='gzip'))
+            norm_conversion = .65 / (np.max(pos_data_norm[:, 0])
+                                     - np.min(pos_data_norm[:, 0]))
 
-        pos_obj = Position(source=source,
-                           spatial_series=spatial_series_object,
-                           name=label + '_position')
+            spatial_series_object = SpatialSeries(
+                name=label + '_norm_spatial_series', source='position sensor0',
+                data=H5DataIO(pos_data_norm, compression='gzip'),
+                reference_frame='unknown', conversion=norm_conversion,
+                resolution=np.nan,
+                timestamps=H5DataIO(tt, compression='gzip'))
 
-        module_behavior.add_container(pos_obj)
+            if 'twhl_linearized' in matin:
+                pos_data_linearized = matin['twhl_linearized'][:, 1:]
+
+                # each arm is 102 cm. This converts to meters
+                lin_conversion = 2.04 / (np.nanmax(pos_data_linearized[:, 1])
+                                         - np.nanmin(pos_data_linearized[:, 1]))
+
+                spatial_series_object = [spatial_series_object] + [SpatialSeries(
+                    name=label + '_linearized_spatial_series', source='position sensor0',
+                    data=H5DataIO(pos_data_linearized, compression='gzip'),
+                    reference_frame='unknown', conversion=lin_conversion,
+                    resolution=np.nan,
+                    timestamps=H5DataIO(tt, compression='gzip'))]
+
+            pos_obj = Position(source=source,
+                               spatial_series=spatial_series_object,
+                               name=label + '_position')
+            module_behavior.add_container(pos_obj)
 
         for i, window in enumerate(exp_times):
             nwbfile.create_epoch(start_time=window[0], stop_time=window[1],
                                  tags=tuple(), description=label + '_' + str(i),
-                                 timeseries=all_ts+[spatial_series_object])
+                                 timeseries=[])
         print('done.')
 
     # load celltypes
@@ -316,10 +333,12 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     exc = matin['FinalExcMonoSynID']
     inh = matin['FinalInhMonoSynID']
 
-    exc_obj = CatCellInfo(name='excitatory_connections', source=session_name+'-MonoSynConvClick.mat',
+    exc_obj = CatCellInfo(name='excitatory_connections',
+                          source=session_name + '-MonoSynConvClick.mat',
                           values=[], cell_index=exc[:, 0] - 1, indices=exc[:, 1] - 1)
     module_cellular.add_container(exc_obj)
-    inh_obj = CatCellInfo(name='inhibitory_connections', source=session_name+'-MonoSynConvClick.mat',
+    inh_obj = CatCellInfo(name='inhibitory_connections',
+                          source=session_name + '-MonoSynConvClick.mat',
                           values=[], cell_index=inh[:, 0] - 1, indices=inh[:, 1] - 1)
     module_cellular.add_container(inh_obj)
 
@@ -354,7 +373,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
 
         module_lfp.add_container(time_series)
 
-    out_fname = '/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/' + session_name + '.nwb'
+    out_fname = session_path + '.nwb'
     if stub:
         out_fname = out_fname[:-4] + '_stub.nwb'
     print('writing NWB file...', end='', flush=True)

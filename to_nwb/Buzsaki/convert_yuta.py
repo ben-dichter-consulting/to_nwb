@@ -31,11 +31,12 @@ def parse_states(fpath):
                  'X': 'Extra large open field',
                  'Nc': 'New open field w/ curtain'}
 
-    fpath_base, fname = os.path.split(fpath)
+    subject_path, fname = os.path.split(fpath)
+    fpath_base, fname = os.path.split(subject_path)
     subject_id, date_text = fname.split('-')
     session_date = dateparse(date_text, yearfirst=True)
     mouse_num = ''.join(filter(str.isdigit, subject_id))
-    exp_sheet_path = os.path.join(fpath_base, 'YM' + mouse_num + ' exp_sheet.xlsx')
+    exp_sheet_path = os.path.join(subject_path, 'YM' + mouse_num + ' exp_sheet.xlsx')
     df = pd.read_excel(exp_sheet_path, sheet_name=1)
     state_ids = df[df['implanted'] == session_date].values[0, 2:15]
 
@@ -46,14 +47,18 @@ def parse_states(fpath):
     return states, state_times
 
 
-def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/YutaMouse41-150903',
-             subject_xls='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/YM41 exp_sheet.xlsx',
-             stub=False):
+def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/YutaMouse41/YutaMouse41-150903',
+             subject_xls=None, stub=False):
 
-    fpath_base, session_name = os.path.split(session_path)
+
+    subject_path, session_name = os.path.split(session_path)
+    fpath_base = os.path.split(subject_path)[0]
     identifier = session_name
-
     subject_id, date_text = session_name.split('-')
+
+    if subject_xls is None:
+        subject_xls = os.path.join(subject_path, 'YM' + session_name[9:11] + ' exp_sheet.xlsx')
+
     session_start_time = dateparse(date_text, yearfirst=True)
 
     df = pd.read_excel(subject_xls)

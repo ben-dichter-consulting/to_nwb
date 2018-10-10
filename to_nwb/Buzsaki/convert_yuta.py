@@ -257,10 +257,10 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
                                name=label + '_position')
             module_behavior.add_container(pos_obj)
 
-        for i, window in enumerate(exp_times):
-            nwbfile.create_epoch(start_time=window[0], stop_time=window[1],
-                                 tags=tuple(), description=label + '_' + str(i),
-                                 timeseries=[])
+            for i, window in enumerate(exp_times):
+                nwbfile.create_epoch(start_time=window[0], stop_time=window[1],
+                                     tags=tuple(), description=label + '_' + str(i),
+                                     timeseries=[])
         print('done.')
 
     # load celltypes

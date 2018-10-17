@@ -14,12 +14,13 @@ from pynwb.retinotopy import *
 from pynwb.behavior import *
 
 
-def attributes2docval(attributes):
+def attributes2docval(attributes, prefix):
     """
     Takes a spec attribute and creates the appropriate docval entry
     Parameters
     ----------
     attributes: dict
+    prefix: str
 
     Returns
     -------
@@ -36,7 +37,9 @@ def attributes2docval(attributes):
         else:
             _type = attrib.dtype
 
-        arg_spec = {'name': attrib.name, 'type': _type, 'doc': attrib.doc}
+        arg_spec = {'name': prefix + attrib.name,
+                    'type': _type,
+                    'doc': attrib.doc}
         if 'value' in attrib:
             arg_spec['default'] = attrib.value
         elif not attrib.required:
@@ -49,7 +52,7 @@ def attributes2docval(attributes):
     return args_spec
 
 
-def obj2docval(spec):
+def spec2docval(spec, prefix=''):
     """
     Reads spec and automatically generates teh appropriate docval args for the
     constructor.
@@ -57,6 +60,7 @@ def obj2docval(spec):
     Parameters
     ----------
     spec: dict
+    prefix: str
 
     Returns
     -------
@@ -67,26 +71,33 @@ def obj2docval(spec):
     args_spec = []
 
     if 'attributes' in spec:
-        args_spec += attributes2docval(spec.attributes)
+        args_spec += attributes2docval(spec['attributes'])
 
     if 'groups' in spec:
-        for group in spec.groups:
-            arg_spec = {'name': group.name, 'type': group.neurodata_type_def, 'doc': group.doc}
-            if group.quantity in ('?', '*'):
-                arg_spec['default'] = None
-            args_spec.append(arg_spec)
-            args_spec += obj2docval(group)
+        for group in spec['groups']:
+            if 'neurodata_type_def' in group:
+                arg_spec = {'name': group.name,
+                            'type': group.neurodata_type_def,
+                            'doc': group.doc}
+                if group.quantity in ('?', '*'):
+                    arg_spec['default'] = None
+                args_spec.append(arg_spec)
+            else:
+                spec2docval(group, prefix + group.name + '_')
 
     if 'datasets' in spec:
-        for dataset in spec.datasets:
-            arg_spec = {'name': dataset.name, 'type': Iterable, 'doc': dataset.doc}
+        for dataset in spec['datasets']:
+            arg_spec = {'name': dataset.name,
+                        'type': Iterable,
+                        'doc': dataset.doc}
             if 'shape' in spec:
                 arg_spec['shape'] = dataset.shape
             if dataset.quantity in ('?', '*'):
                 arg_spec['default'] = None
             args_spec.append(arg_spec)
             if 'attributes' in spec:
-                args_spec += attributes2docval(dataset.attributes)
+                args_spec += attributes2docval(dataset.attributes,
+                                               prefix + dataset.name + '_')
 
     names = [x['name'] for x in args_spec]
     if 'neurodata_type_inc' in spec:
@@ -98,10 +109,10 @@ def obj2docval(spec):
     return tuple(args_spec)
 
 
-def get_nwbfields(spec):
-    """
-    Reads spec and determines __nwbfields__ which tells pynwb which attributes
+def spec2nwbfields(spec):
+    """Reads spec and determines __nwbfields__ which tells pynwb which attributes
     to write to disk
+
     Parameters
     ----------
     spec: dict
@@ -126,12 +137,25 @@ def get_nwbfields(spec):
     return tuple(vars)
 
 
+def spec2obj(root, spec, prefix='', **kwargs):
+
+    for xx in ('groups', 'datasets', 'attributes'):
+        if xx in spec:
+            for obj_spec in spec[xx]:
+                setattr(root, obj_spec['name'], kwargs[prefix + obj_spec['name']])
+                if xx in ('groups', 'datasets'):
+                    root[obj_spec['name']] = spec2obj(root[obj_spec['name']],
+                                                      spec[xx], prefix + '_')
+
+    return root
+
+
 def get_class(namespace, data_type, init_pre=lambda **kwargs: None,
               init_post=lambda **kwargs: None):
     """
     Generate class with appropriate constructor for any extension class. Will
     work for all classes, but for MultiContainerInterfaces it is better to use
-    auto_class.get_multi_containter().
+    auto_class.get_multi_container().
 
     Parameters
     ----------
@@ -146,9 +170,9 @@ def get_class(namespace, data_type, init_pre=lambda **kwargs: None,
 
     """
     spec = __NS_CATALOG.get_spec(namespace, data_type)
-    __nwbfields__ = get_nwbfields(spec)
+    __nwbfields__ = spec2nwbfields(spec)
 
-    @docval(*obj2docval(spec))
+    @docval(*spec2docval(spec))
     def __init__(self, **kwargs):
         init_pre(**kwargs)
         super_args = [x['name'] for x in super(type(self), self).__init__.__docval__['args']]
@@ -159,6 +183,7 @@ def get_class(namespace, data_type, init_pre=lambda **kwargs: None,
                 setattr(self, attr, val)
             except AttributeError:
                 pass
+        self = spec2obj(self, spec, **kwargs)
         init_post(**kwargs)
 
     d = {'__init__': __init__, '__nwbfields__': __nwbfields__}
@@ -171,6 +196,7 @@ def get_class(namespace, data_type, init_pre=lambda **kwargs: None,
 def camel2underscore(name):
     """
     Converts camelcase to underscore e.g. CamelCase -> camel_case
+
     Parameters
     ----------
     name: str

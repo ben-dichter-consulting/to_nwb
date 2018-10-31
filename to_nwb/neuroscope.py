@@ -190,7 +190,7 @@ def write_clustering(module_cellular, session_path, shanks, fs=20000.):
     for shankn in shanks:
         df = get_clusters_single_shank(session_path, shankn, fs=fs)
         clustering = Clustering(
-            name='shank' + str(shankn) + ' clusters', source=session_path,
+            name='shank' + str(shankn) + ' clusters',
             description='shank' + str(shankn), num=df['id'].values,
             peak_over_rms=[], times=df['time'].values)
 
@@ -199,7 +199,7 @@ def write_clustering(module_cellular, session_path, shanks, fs=20000.):
     return module_cellular
 
 
-def build_unit_times(session_path, shanks=None, name='UnitTimes', source=None,
+def build_unit_times(session_path, shanks=None, name='UnitTimes',
                      unit_ids=None):
     """
 
@@ -210,7 +210,6 @@ def build_unit_times(session_path, shanks=None, name='UnitTimes', source=None,
         shank numbers to process. If None, attempt to automatically determine
         the number of shanks
     name: str
-    source: str
     unit_ids: array-like if ints, optional
         If not provided, count from 0
 
@@ -223,10 +222,7 @@ def build_unit_times(session_path, shanks=None, name='UnitTimes', source=None,
         shanks = [x[-1] for x in
                   glob(os.path.join(session_path, session_name + '.res.*'))]
 
-    if source is None:
-        source = session_path
-
-    ut = UnitTimes(name=name, source=source)
+    ut = UnitTimes(name=name)
 
     cell_counter = 0
     for shank_num in shanks:
@@ -270,7 +266,6 @@ def write_electrode_table(nwbfile, session_path, electrode_positions=None,
         shankn += 1
         electrode_group = nwbfile.create_electrode_group(
             name='shank{}'.format(shankn),
-            source=fname + '.xml',
             description='shank{} electrodes'.format(shankn),
             device=device,
             location='unknown')
@@ -357,8 +352,7 @@ def write_lfp(nwbfile, session_path, stub=False):
         rate=lfp_fs,
         resolution=np.nan)
 
-    nwbfile.add_acquisition(LFP(name='all_lfp', source='source',
-                                electrical_series=all_lfp_electrical_series))
+    nwbfile.add_acquisition(LFP(name='all_lfp', electrical_series=all_lfp_electrical_series))
 
     return nwbfile
 
@@ -388,14 +382,14 @@ def write_events(nwbfile, session_path, suffixes=None):
         evt_files = [os.path.join(session_path, session_name + s)
                      for s in suffixes]
     ann_mod = nwbfile.create_processing_module(
-        'annotations', source=session_path, description='evt files')
+        'annotations', description='evt files')
     for evt_file in evt_files:
         name = evt_file[-3:]
         df = pd.read_csv(evt_file, sep='\t', names=('time', 'desc'))
         timestamps = df.values[:, 0].astype(float) / 1000
         data = df['desc'].values
         annotation_series = AnnotationSeries(
-            name=name, source=evt_file, data=data, timestamps=timestamps)
+            name=name, data=data, timestamps=timestamps)
         ann_mod.add_container(annotation_series)
 
     return nwbfile
@@ -434,5 +428,4 @@ def write_spike_waveforms(nwbfile, session_path, shankn):
 
     spike_times = read_spike_times(session_path, shankn)
 
-    SpikeEventSeries(name='spike_waveforms', source=session_path, data=spks,
-                     timestamps=spike_times, electrodes=table_region)
+    SpikeEventSeries(name='spike_waveforms', data=spks, timestamps=spike_times, electrodes=table_region)

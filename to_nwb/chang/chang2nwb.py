@@ -70,10 +70,8 @@ def add_cortical_surface(nwbfile, pial_files):
         vert = matin[x]['vert'][0][0]
         name = pial_file[pial_file.find('Meshes')+7:-4]
         names.append(name)
-        surfaces.append(Surface(faces=tri, vertices=vert, name=name,
-                                source=pial_file))
-    nwbfile.add_acquisition(CorticalSurfaces(surfaces=surfaces,
-                                             source=pial_file))
+        surfaces.append(Surface(faces=tri, vertices=vert, name=name))
+    nwbfile.add_acquisition(CorticalSurfaces(surfaces=surfaces))
     return nwbfile, names
 
 
@@ -208,7 +206,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
             coord.append([np.nan, np.nan, np.nan])
 
     # Create the NWB file object
-    nwbfile = NWBFile('source', session_description, identifier,
+    nwbfile = NWBFile(session_description, identifier,
                       session_start_time, datetime.now(),
                       institution='University of California, San Francisco',
                       lab='Chang Lab', **kwargs)
@@ -219,12 +217,11 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
     for device_name in devices:
         device_data = elec_grp_df[elec_grp_df['device'] == device_name]
         # Create devices
-        device = nwbfile.create_device(device_name, 'source')
+        device = nwbfile.create_device(device_name)
 
         # Create electrode groups
         electrode_group = nwbfile.create_electrode_group(
             name=device_name + ' electrodes',
-            source='source',
             description=device_name,
             location=device_data['type'].iloc[0],
             device=device
@@ -254,7 +251,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
             print('done', flush=True)
         if ekg_elecs:
             ekg_data, _ = readhtks(lfp_path, ekg_elecs)
-            ekg_ts = TimeSeries('EKG', 'source', H5DataIO(ekg_data, compression='gzip'),
+            ekg_ts = TimeSeries('EKG', H5DataIO(ekg_data, compression='gzip'),
                                 rate=rate, unit='V', conversion=.001,
                                 description='electrotorticography')
             nwbfile.add_acquisition(ekg_ts)
@@ -274,7 +271,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
     if mini:
         data = data[:2000]
 
-    lfp_ts = ElectricalSeries('LFP', "source", H5DataIO(data, compression='gzip'),
+    lfp_ts = ElectricalSeries('LFP', H5DataIO(data, compression='gzip'),
                               all_elecs, rate=rate, description=ts_desc,
                               conversion=0.001)
     nwbfile.add_acquisition(lfp_ts)
@@ -284,7 +281,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
     if mic:
         # Add microphone recording from room
         mic_htk = readHTK(mic_file, scale_s_rate=True)
-        nwbfile.add_acquisition(TimeSeries('microphone', 'microphone in room',
+        nwbfile.add_acquisition(TimeSeries('microphone',
                                            mic_htk['data'][0],
                                            'audio unit', starting_time=0.0,
                                            rate=mic_htk['sampling_rate'],
@@ -293,7 +290,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
     if speakers:
         # Add audio stimulus 1
         stim_htk = readHTK(L_speaker_file, scale_s_rate=True)
-        nwbfile.add_stimulus(TimeSeries('speaker 1', 'the first stimulus source',
+        nwbfile.add_stimulus(TimeSeries('speaker 1',
                                         stim_htk['data'][0], 'audio unit',
                                         starting_time=0.0,
                                         rate=stim_htk['sampling_rate'],
@@ -301,14 +298,14 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
 
         # Add audio stimulus 2
         stim_htk = readHTK(R_speaker_file, scale_s_rate=True)
-        nwbfile.add_stimulus(TimeSeries('speaker 2', "audio stimulus 2", stim_htk['data'][0],
+        nwbfile.add_stimulus(TimeSeries('speaker 2', stim_htk['data'][0],
                                         'audio unit', starting_time=0.0,
                                         rate=stim_htk['sampling_rate'],
                                         description='the second stimulus source'))
 
     if anin4:
         aux_htk = readHTK(aux_file, scale_s_rate=True)
-        nwbfile.add_acquisition(TimeSeries(anin4, 'aux analog',
+        nwbfile.add_acquisition(TimeSeries(anin4,
                                            aux_htk['data'][0],
                                            'aux unit', starting_time=0.0,
                                            rate=aux_htk['sampling_rate'],
@@ -318,9 +315,8 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
     if os.path.exists(bad_time_file):
         bad_time = sio.loadmat(bad_time_file)['badTimeSegments']
         ts_name = 'badTimeSegments'
-        ts_source = bad_time_file      # this should be something more descriptive
         ts_desc = 'bad time segments'  # this should be something more descriptive
-        bad_timepoints_ts = IntervalSeries(ts_name, ts_source, description=ts_desc)
+        bad_timepoints_ts = IntervalSeries(ts_name, description=ts_desc)
         [bad_timepoints_ts.add_interval(start, stop) for start, stop in bad_time]
 
         if len(bad_time) > 0:
@@ -333,16 +329,15 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
         #   real_data,
         #   imaginary_data,
         #   phase_data
-        hs = HilbertSeries(name='hilbert_series', source=hilbdir, filter_centers=[1., 2., 3.],
+        hs = HilbertSeries(name='hilbert_series', filter_centers=[1., 2., 3.],
                            filter_sigmas=[1., 2., 3.], data=data, rate=rate, electrodes=all_elecs)
 
-        hilb_mod = nwbfile.create_processing_module(name='hilbert', source='na', description='na')
+        hilb_mod = nwbfile.create_processing_module(name='hilbert', description='na')
         hilb_mod.add_container(hs)
 
     if cortical_mesh == 'external':
         anat_fpath = path.join(basepath, subject + '_cortical_surface.nwbaux')
-        anat_nwbfile = NWBFile(source='',
-                               session_description='',
+        anat_nwbfile = NWBFile(session_description='',
                                identifier=subject + '_cortical_surface',
                                session_start_time=datetime(1900, 1, 1))  # placeholder since this argument is required
         anat_nwbfile, pial_names = add_cortical_surface(anat_nwbfile, pial_files)
@@ -405,4 +400,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

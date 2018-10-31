@@ -21,7 +21,6 @@ def convert_file1(fpath, session_start_time,
     identifier = fname[:-4]
     institution = 'Stanford'
     lab = 'Soltesz'
-    source = fname[:-4]
 
     # extract data
     spike_units = []
@@ -35,8 +34,7 @@ def convert_file1(fpath, session_start_time,
                     UnitData = spiketrain['Attribute Value'][start:fin] / 1000
                     spike_units.append(SpikeUnit(name=cell_type + '{:05d}'.format(i),
                                                  times=UnitData,
-                                                 unit_description=cell_type,
-                                                 source=source))
+                                                 unit_description=cell_type))
 
         ## Position
         x = f['Trajectory 0']['x']
@@ -46,22 +44,21 @@ def convert_file1(fpath, session_start_time,
         pos_data = np.array([x, y]).T
 
     # write to NWB
-    nwbfile = NWBFile(source, session_description, identifier,
+    nwbfile = NWBFile(session_description, identifier,
                       session_start_time, datetime.now(),
                       institution=institution, lab=lab)
 
-    rf_module = nwbfile.create_processing_module('receptive fields', source, 'spike times')
+    rf_module = nwbfile.create_processing_module('receptive fields', 'spike times')
 
-    spatial_series = SpatialSeries('Position',
-                                   source, pos_data,
+    spatial_series = SpatialSeries('Position', pos_data,
                                    reference_frame='NA',
                                    conversion=1 / 100.,
                                    resolution=0.1,
                                    starting_time=0.0,
                                    rate=rate)
 
-    behav_ts = Position(source, spatial_series)
-    unit_times = UnitTimes(source, spike_units, name='simulated cell spike data')
+    behav_ts = Position(spatial_series)
+    unit_times = UnitTimes(spike_units, name='simulated cell spike data')
 
     rf_module.add_container(unit_times)
     rf_module.add_container(behav_ts)
@@ -94,8 +91,7 @@ def get_neuroh5_cell_data(fpath='../data/dentatenet_spikeout_Full_Scale_Control_
 
             value += list(spike_struct['Attribute Value'][:])
 
-        unique_cell_types, cell_type_indices = np.unique(all_cell_types,
-                                                       return_inverse=True)
+        unique_cell_types, cell_type_indices = np.unique(all_cell_types, return_inverse=True)
 
     return {'cell_index': cell_index, 'unique_cell_types': unique_cell_types,
             'cell_type_indices': cell_type_indices,
@@ -122,9 +118,7 @@ def write_nwb(cell_data, fpath='../data/soltesz_data.nwb', compress=True):
                      for key, val in cell_data.items()}
 
     fname = os.path.split(fpath)[0]
-    source = fname[:-3]
     f = NWBFile(file_name=fname,
-                source=source,
                 session_description=fname[:-3],
                 identifier=fname[:-3],
                 session_start_time=datetime.now(),
@@ -132,17 +126,16 @@ def write_nwb(cell_data, fpath='../data/soltesz_data.nwb', compress=True):
                 institution='Stanford')
 
     population_module = f.create_processing_module(name='spikes',
-                                                   source='source',
                                                    description='description')
 
     population_module.add_container(
-        CatCellInfo(name='Cell Types', source=source,
+        CatCellInfo(name='Cell Types',
                     values=cell_data['unique_cell_types'],
                     indices=cell_data['cell_type_indices'],
                     cell_index=cell_data['cell_index']))
 
     population_module.add_container(
-        PopulationSpikeTimes(name='Population Spike Times', source=source,
+        PopulationSpikeTimes(name='Population Spike Times',
                              cell_index=cell_data['cell_index'],
                              value=cell_data['value'],
                              pointer=cell_data['value_pointer']))

@@ -18,15 +18,14 @@ class CatCellInfo(NWBDataInterface):
     __nwbfields__ = ('values', 'indices', 'cell_index')
 
     @docval({'name': 'name', 'type': str, 'doc': 'name'},
-            {'name': 'source', 'type': str, 'doc': 'source?'},
             {'name': 'values', 'type': Iterable, 'doc': 'unique values as strings'},
             {'name': 'indices', 'type': Iterable, 'doc': 'indexes into those values'},
             {'name': 'cell_index', 'type': Iterable,  'default': None,
              'doc': 'global id for neuron'})
     def __init__(self, **kwargs):
-        name, source, values, indices, cell_index = popargs(
-            'name', 'source', 'values', 'indices', 'cell_index', kwargs)
-        super(CatCellInfo, self).__init__(source, name, **kwargs)
+        name, values, indices, cell_index = popargs(
+            'name', 'values', 'indices', 'cell_index', kwargs)
+        super(CatCellInfo, self).__init__(name, **kwargs)
 
         self.values = values
         self.indices = indices
@@ -53,10 +52,6 @@ class CatTimeSeries(TimeSeries):
     __time_unit = "Seconds"
 
     @docval({'name': 'name', 'type': str, 'doc': 'The name of this CatTimeSeries dataset'},
-            {'name': 'source', 'type': str,
-             'doc': ('Name of CatTimeSeries or Modules that serve as the source for the data '
-                     'contained here. It can also be the name of a device, for stimulus or '
-                     'acquisition data')},
             {'name': 'data', 'type': ('array_data', 'data', 'TimeSeries'),
              'doc': 'The data this TimeSeries dataset stores. Can also store binary data e.g. image frames',
              'default': None},

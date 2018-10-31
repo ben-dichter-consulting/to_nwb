@@ -29,8 +29,7 @@ institution = 'Columbia'
 lab = 'Losonczy'
 
 
-source = fname
-nwbfile = NWBFile(source, session_description, identifier,
+nwbfile = NWBFile(session_description, identifier,
                   session_start_time, institution=institution, lab=lab)
 all_ts = []
 
@@ -47,10 +46,9 @@ nchannels = eeg_dict['nChannels']
 lfp_signal = eeg_dict['EEG'][:, lfp_channels]
 
 device_name = 'LFP device'
-device = nwbfile.create_device(device_name, source=source)
+device = nwbfile.create_device(device_name)
 electrode_group = nwbfile.create_electrode_group(
     name=device_name + '_electrodes',
-    source=lfp_xml_fpath,
     description=device_name,
     device=device,
     location='unknown')
@@ -76,12 +74,11 @@ lfp_elec_series = ElectricalSeries('lfp', 'lfp',
                                    rate=lfp_fs,
                                    resolution=np.nan)
 
-nwbfile.add_acquisition(LFP(source=source, electrical_series=lfp_elec_series))
+nwbfile.add_acquisition(LFP(electrical_series=lfp_elec_series))
 
 
 optical_channel = OpticalChannel(
     name='Optical Channel',
-    source=NA,
     description=NA,
     emission_lambda=NA,
 )
@@ -111,7 +108,7 @@ manifold = np.meshgrid(np.arange(nx)*elem_size_um[2],
 
 
 imaging_plane = nwbfile.create_imaging_plane(
-    name='my_imgpln', source='Ca2+ imaging example',
+    name='my_imgpln',
     optical_channel=optical_channel,
     description='unknown',
     device='imaging_device_1', excitation_lambda='unknown',
@@ -123,7 +120,7 @@ imaging_plane = nwbfile.create_imaging_plane(
     reference_frame='A frame to refer to')
 
 for channel_name, imaging_data in zip(channel_names, all_imaging_data):
-    image_series = TwoPhotonSeries(name='image', source='Ca2+ imaging example',
+    image_series = TwoPhotonSeries(name='image',
                                    dimension=[2], data=imaging_data,
                                    imaging_plane=imaging_plane,
                                    starting_frame=[0], timestamps=[1, 2, 3],

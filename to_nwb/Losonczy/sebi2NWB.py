@@ -50,7 +50,7 @@ def add_LFP(nwbfile, expt, count=1, region='CA1'):
     lfp_signal = eeg_dict['EEG'][lfp_channels].T
 
     device_name = 'LFP_Device_{}'.format(count)
-    device = nwbfile.create_device(device_name, source='SOURCE')
+    device = nwbfile.create_device(device_name)
     electrode_group = nwbfile.create_electrode_group(
         name=device_name + '_electrodes',
         source=lfp_xml_fpath,
@@ -75,7 +75,6 @@ def add_LFP(nwbfile, expt, count=1, region='CA1'):
     # TODO add conversion field for moving to V
     # TODO figure out how to link lfp data (zipping seems kludgey)
     lfp_elec_series = ElectricalSeries(name='LFP',
-                                       source='SOURCE',
                                        data=H5DataIO(lfp_signal,
                                                      compression='gzip'),
                                        electrodes=lfp_table_region,
@@ -84,7 +83,7 @@ def add_LFP(nwbfile, expt, count=1, region='CA1'):
                                        rate=lfp_fs,
                                        resolution=np.nan)
 
-    nwbfile.add_acquisition(LFP(source='SOURCE', electrical_series=lfp_elec_series))
+    nwbfile.add_acquisition(LFP(electrical_series=lfp_elec_series))
 
 
 def add_imaging(nwbfile, expt, z_spacing=25., device='2P Microscope', location='CA1',
@@ -102,7 +101,6 @@ def add_imaging(nwbfile, expt, z_spacing=25., device='2P Microscope', location='
 
         optical_channel = OpticalChannel(
             name=ch_name,
-            source='SOURCE',
             description=color_dict[ch_name],
             emission_lambda=emission[ch_name])
 
@@ -121,7 +119,7 @@ def add_imaging(nwbfile, expt, z_spacing=25., device='2P Microscope', location='
     # TODO allow for flexibility in setting device, excitation, indicator, location
     # TODO nwb-schema issue #151 needs to be resolved so we can actually use imaging data size
     imaging_plane = nwbfile.create_imaging_plane(
-        name='Imaging Data', source='SOURCE',
+        name='Imaging Data',
         optical_channel=optical_channels,
         description='imaging data for both channels',
         device=device, excitation_lambda=excitation_lambda,
@@ -143,7 +141,6 @@ def add_imaging(nwbfile, expt, z_spacing=25., device='2P Microscope', location='
     for channel_name, imaging_data in zip(channel_names, all_imaging_data):
         # TODO parse env file to add power and pmt gain?
         image_series = TwoPhotonSeries(name='2p_Series_' + channel_name,
-                                       source='SOURCE',
                                        dimension=expt.frame_shape()[:-1],
                                        data=H5DataIO(data=imaging_data, compression='gzip'),
                                        imaging_plane=imaging_plane,
@@ -163,13 +160,13 @@ def add_behavior(nwbfile, expt):
 
     fs = 1 / expt.frame_period()
 
-    behavior_module = nwbfile.create_processing_module(name='Behavior', source='SOURCE',
+    behavior_module = nwbfile.create_processing_module(name='Behavior',
                                                        description='Data relevant to behavior')
 
     # Add Normalized Position
 
-    pos = Position(source='SOURCE', name='Normalized Position')
-    pos.create_spatial_series(name='Normalized Position', source='SOURCE',
+    pos = Position(name='Normalized Position')
+    pos.create_spatial_series(name='Normalized Position',
                               data=bd['treadmillPosition'], reference_frame='0 is belt start',
                               conversion=0.001 * bd['trackLength'], rate=fs, starting_time=0.0)
 
@@ -177,25 +174,25 @@ def add_behavior(nwbfile, expt):
 
     # Add Licking
 
-    licking = BehavioralTimeSeries(source='SOURCE', name='Licking')
-    licking.create_timeseries(source='SOURCE', name='Licking', data=bd['licking'], starting_time=0.0,
+    licking = BehavioralTimeSeries(name='Licking')
+    licking.create_timeseries(name='Licking', data=bd['licking'], starting_time=0.0,
                               rate=fs, description='1 if mouse licked during this imaging frame')
 
     behavior_module.add_container(licking)
 
     # Add Water Reward Delivery
 
-    water = BehavioralTimeSeries(source='SOURCE', name='Water')
-    water.create_timeseries(source='SOURCE', name='Water', data=bd['water'], starting_time=0.0,
+    water = BehavioralTimeSeries(name='Water')
+    water.create_timeseries(name='Water', data=bd['water'], starting_time=0.0,
                             rate=fs, description='1 if water was delivered during this imaging frame')
 
     behavior_module.add_container(water)
 
     # Add Lap Times
 
-    laps = BehavioralEvents(source='SOURCE', name='Lap Starts')
+    laps = BehavioralEvents(name='Lap Starts')
     # TODO probably not best to have laps as data and timestamps here
-    laps.create_timeseries(source='SOURCE', name='Lap Starts', data=bd['lap'],
+    laps.create_timeseries(name='Lap Starts', data=bd['lap'],
                            timestamps=bd['lap'], description='Frames at which laps began')
 
     behavior_module.add_container(laps)
@@ -217,9 +214,9 @@ def get_image_mask(roi):
 
 def add_rois(nwbfile, module, expt):
 
-    img_seg = ImageSegmentation(source='SOURCE')
+    img_seg = ImageSegmentation()
     module.add_data_interface(img_seg)
-    ps = img_seg.create_plane_segmentation(source='SOURCE', description='ROIs',
+    ps = img_seg.create_plane_segmentation(description='ROIs',
                                            imaging_plane=nwbfile.get_imaging_plane('Imaging Data'),
                                            name='Plane Segmentation')
 
@@ -237,9 +234,9 @@ def add_signals(module, expt, rt_region):
 
     fs = 1 / expt.frame_period()
 
-    fluor = Fluorescence(source='SOURCE')
+    fluor = Fluorescence()
     sigs = expt.imagingData(dFOverF=None)
-    fluor.create_roi_response_series(source='SOURCE', name='Fluorescence',
+    fluor.create_roi_response_series(name='Fluorescence',
                                      data=sigs.squeeze(), rate=fs, unit='NA',
                                      rois=rt_region, starting_time=0.0)
 
@@ -250,9 +247,9 @@ def add_dff(module, expt, rt_region):
 
     fs = 1 / expt.frame_period()
 
-    fluor = DfOverF(source='SOURCE', name='DFF')
+    fluor = DfOverF(name='DFF')
     sigs = expt.imagingData(dFOverF=None)
-    fluor.create_roi_response_series(source='SOURCE', name='DFF',
+    fluor.create_roi_response_series(name='DFF',
                                      starting_time=0.0,
                                      data=sigs.squeeze(), rate=fs, unit='NA',
                                      rois=rt_region)
@@ -269,8 +266,7 @@ def main(argv):
 
     # Initialize NWBFile directly from experiment object metadata
 
-    nwbfile = NWBFile(source='Losonczy Lab',  # required
-                      session_description='{} experiment for mouse {}'.format(
+    nwbfile = NWBFile(session_description='{} experiment for mouse {}'.format(
                           expt.experimentType, expt.parent.mouse_name),  # required
                       identifier='{}'.format(expt.trial_id),  # required
                       session_start_time=expt.get('startTime'),  # required
@@ -288,7 +284,7 @@ def main(argv):
     add_behavior(nwbfile, expt)
 
 
-    imaging_module = nwbfile.create_processing_module(name='im_analysis', source='SOURCE',
+    imaging_module = nwbfile.create_processing_module(name='im_analysis',
                                                       description='Data relevant to imaging')
 
     ps = add_rois(nwbfile, imaging_module, expt)

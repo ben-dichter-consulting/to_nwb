@@ -34,9 +34,8 @@ aux_data = np.fromfile(data_fpaths['auxiliary'], dtype=np.int16).reshape(ntt, -1
 nwbfile = NWBFile(session_start_time=session_start_time, identifier=this_dir,
                   source=this_dir, session_description='unknown')
 
-device = nwbfile.create_device(name='all_channels_device', source=' ')
+device = nwbfile.create_device(name='all_channels_device')
 group = nwbfile.create_electrode_group(name='all_channels_group',
-                                       source=' ',
                                        description='all channels',
                                        device=device,
                                        location='unknown')
@@ -56,18 +55,10 @@ electrode_table_region = nwbfile.create_electrode_table_region(
 electrical_series = ElectricalSeries(data=amp_data, starting_time=0.0,
                                      rate=amp_fs, units='unknown',
                                      electrodes=electrode_table_region,
-                                     name='amp_data',
-                                     source=data_fpaths['amplifier'])
-nwbfile.add_acquisition(
-    LFP(name='amp_data', source=data_fpaths['amplifier'],
-        electrical_series=electrical_series))
-
-nwbfile.add_acquisition(
-    TimeSeries('auxiliary', source=data_fpaths['auxiliary'], data=aux_data,
-               starting_time=0.0, rate=amp_fs))
-nwbfile.add_acquisition(
-    TimeSeries('supply', source=data_fpaths['supply'], data=supply_data,
-               starting_time=0.0, rate=amp_fs))
+                                     name='amp_data')
+nwbfile.add_acquisition(LFP(name='amp_data', electrical_series=electrical_series))
+nwbfile.add_acquisition(TimeSeries('auxiliary', data=aux_data, starting_time=0.0, rate=amp_fs))
+nwbfile.add_acquisition(TimeSeries('supply', data=supply_data, starting_time=0.0, rate=amp_fs))
 
 out_fname = this_dir + '.nwb'
 with NWBHDF5IO(out_fname, 'w') as io:

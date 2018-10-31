@@ -19,7 +19,7 @@ from tqdm import tqdm
 from to_nwb.utils import find_discontinuities
 from to_nwb import neuroscope as ns
 
-from ephys_analysis.analysis import filter_lfp, hilbert_lfp
+from ephys_analysis.band_analysis import filter_lfp, hilbert_lfp
 
 
 def parse_states(fpath):
@@ -48,8 +48,7 @@ def parse_states(fpath):
 
 
 def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/YutaMouse41/YutaMouse41-150903',
-             subject_xls=None, stub=False):
-
+             subject_xls=None, include_all_lfp=False):
 
     subject_path, session_name = os.path.split(session_path)
     fpath_base = os.path.split(subject_path)[0]
@@ -71,14 +70,12 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
 
     subject = Subject(subject_id=subject_id, age=str(age),
                       genotype=subject_data['genotype'],
-                      species='mouse', source='source')
+                      species='mouse')
 
-    source = session_name
-    nwbfile = NWBFile(source=source,
-                      session_description='mouse in open exploration and theta maze',
+    nwbfile = NWBFile(session_description='mouse in open exploration and theta maze',
                       identifier=identifier,
-                      session_start_time=session_start_time,
-                      file_create_date=datetime.now(),
+                      session_start_time=session_start_time.astimezone(),
+                      file_create_date=datetime.now().astimezone(),
                       experimenter='Yuta Senzai',
                       session_id=session_name,
                       institution='NYU',
@@ -100,7 +97,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     pos_df = ns.get_position_data(session_path)
     print('done.')
 
-    print('setting up raw position data...', end='', flush=True)
+    print('writing raw position data...', end='', flush=True)
     # raw position sensors file
     pos0 = nwbfile.add_acquisition(
         SpatialSeries('position sensor0',
@@ -131,7 +128,6 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
         device = nwbfile.create_device(device_name, session_name + '.xml')
         electrode_group = nwbfile.create_electrode_group(
             name=device_name + '_electrodes',
-            source=session_name + '.xml',
             description=device_name,
             device=device,
             location='unknown')
@@ -154,7 +150,6 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     device = nwbfile.create_device(device_name, session_name + '.xml')
     electrode_group = nwbfile.create_electrode_group(
         name=device_name + '_electrodes',
-        source=session_name + '.xml',
         description=device_name,
         device=device,
         location='unknown')
@@ -177,33 +172,29 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
 
     # lfp
     print('reading LFPs...', end='', flush=True)
+    lfp_file = os.path.join(session_path, session_name + '.eeg')
+    all_channels = np.fromfile(lfp_file, dtype=np.int16).reshape(-1, 80)
+    all_channels_lfp = all_channels[:, all_shank_channels]
 
-    if not stub:
-        lfp_file = os.path.join(session_path, session_name + '.eeg')
-        all_channels = np.fromfile(lfp_file, dtype=np.int16).reshape(-1, 80)
-        all_channels_lfp = all_channels[:, all_shank_channels]
-
+    if include_all_lfp:
         data = DataChunkIterator(tqdm(all_channels_lfp, desc='writing lfp data'),
                                  buffer_size=int(lfp_fs*3600))
         data = H5DataIO(data, compression='gzip')
-    else:
-        all_channels = np.random.randn(1000, 100)  # use for dev testing for speed
-        data = all_channels
 
-    print('done.')
+        print('making ElectricalSeries objects for LFP...', end='', flush=True)
+        all_lfp_electrical_series = ElectricalSeries(
+            'all_lfp',
+            'lfp signal for all shank electrodes',
+            data,
+            all_table_region,
+            conversion=np.nan,
+            rate=lfp_fs,
+            resolution=np.nan)
+        all_ts.append(all_lfp_electrical_series)
+        nwbfile.add_acquisition(LFP(name='all_lfp',
+                                    electrical_series=all_lfp_electrical_series))
+        print('done.')
 
-    print('making ElectricalSeries objects for LFP...', end='', flush=True)
-    all_lfp_electrical_series = ElectricalSeries(
-        'all_lfp',
-        'lfp signal for all shank electrodes',
-        data,
-        all_table_region,
-        conversion=np.nan,
-        rate=lfp_fs,
-        resolution=np.nan)
-    all_ts.append(all_lfp_electrical_series)
-    nwbfile.add_acquisition(LFP(name='all_lfp', source='source',
-                                electrical_series=all_lfp_electrical_series))
     print('done.')
 
     electrical_series = ElectricalSeries(
@@ -211,7 +202,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
         H5DataIO(all_channels[:, lfp_channel], compression='gzip'),
         lfp_table_region, conversion=np.nan, rate=lfp_fs, resolution=np.nan)
 
-    nwbfile.add_acquisition(LFP(source='source', name='reference_lfp',
+    nwbfile.add_acquisition(LFP(name='reference_lfp',
                                 electrical_series=electrical_series))
     all_ts.append(electrical_series)
 
@@ -221,12 +212,12 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
                   'OpenFieldPosition_Old', 'OpenFieldPosition_Oldlast', 'EightMazePosition']
 
     module_behavior = nwbfile.create_processing_module(
-        name='behavior', source=source, description=source)
+        name='behavior', description='description')
     for label in task_types:
 
-        file = os.path.join(session_path, session_name + '__' + label)
+        file = os.path.join(session_path, session_name + '__' + label + '.mat')
         if os.path.isfile(file):
-            print('loading normalized position data for ' + label + '...', end='', flush=True)
+            print('loading normalized position for ' + label + '...', end='', flush=True)
 
             matin = loadmat(file)
             tt = matin['twhl_norm'][:, 0]
@@ -238,13 +229,14 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
                                      - np.min(pos_data_norm[:, 0]))
 
             spatial_series_object = SpatialSeries(
-                name=label + '_norm_spatial_series', source='position sensor0',
+                name=label + '_norm_spatial_series',
                 data=H5DataIO(pos_data_norm, compression='gzip'),
                 reference_frame='unknown', conversion=norm_conversion,
                 resolution=np.nan,
                 timestamps=H5DataIO(tt, compression='gzip'))
 
             if 'twhl_linearized' in matin:
+                print('loading linearized position...', end='', flush=True)
                 pos_data_linearized = matin['twhl_linearized'][:, 1:]
 
                 # each arm is 102 cm. This converts to meters
@@ -252,15 +244,14 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
                                          - np.nanmin(pos_data_linearized[:, 1]))
 
                 spatial_series_object = [spatial_series_object] + [SpatialSeries(
-                    name=label + '_linearized_spatial_series', source='position sensor0',
+                    name=label + '_linearized_spatial_series',
                     data=H5DataIO(pos_data_linearized, compression='gzip'),
                     reference_frame='unknown', conversion=lin_conversion,
                     resolution=np.nan,
                     timestamps=H5DataIO(tt, compression='gzip'))]
 
-            pos_obj = Position(source=source,
-                               spatial_series=spatial_series_object,
-                               name=label + '_position')
+            pos_obj = Position(name=label + '_position',
+                               spatial_series=spatial_series_object)
             module_behavior.add_container(pos_obj)
 
             for i, window in enumerate(exp_times):
@@ -316,7 +307,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     ut_obj = ns.build_unit_times(session_path, unit_ids=unit_ids)
 
     module_cellular = nwbfile.create_processing_module(
-        'cellular', source=source, description=source)
+        'cellular', description='description')
 
     module_cellular.add_container(ut_obj)
 
@@ -340,19 +331,16 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     inh = matin['FinalInhMonoSynID']
 
     exc_obj = CatCellInfo(name='excitatory_connections',
-                          source=session_name + '-MonoSynConvClick.mat',
-                          values=[], cell_index=exc[:, 0] - 1, indices=exc[:, 1] - 1)
+                          indices_values=[], cell_index=exc[:, 0] - 1, indices=exc[:, 1] - 1)
     module_cellular.add_container(exc_obj)
     inh_obj = CatCellInfo(name='inhibitory_connections',
-                          source=session_name + '-MonoSynConvClick.mat',
-                          values=[], cell_index=inh[:, 0] - 1, indices=inh[:, 1] - 1)
+                          indices_values=[], cell_index=inh[:, 0] - 1, indices=inh[:, 1] - 1)
     module_cellular.add_container(inh_obj)
 
     sleep_state_fpath = os.path.join(session_path, session_name+'--StatePeriod.mat')
     matin = loadmat(sleep_state_fpath)['StatePeriod']
 
-    table = DynamicTable(name='states', source='source',
-                         description='sleep states of animal')
+    table = DynamicTable(name='states', description='sleep states of animal')
     table.add_column(name='start', description='start time')
     table.add_column(name='end', description='end time')
     table.add_column(name='state', description='sleep state')
@@ -365,14 +353,13 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
 
     # compute filtered LFP
     module_lfp = nwbfile.create_processing_module(
-        'lfp_mod', source=source, description=source)
+        'lfp_mod', description='description')
 
     for passband in ('theta', 'gamma'):
         lfp_fft = filter_lfp(all_channels[:, lfp_channel], np.array(lfp_fs), passband=passband)
         lfp_phase, _ = hilbert_lfp(lfp_fft)
 
         time_series = TimeSeries(name=passband + '_phase',
-                                 source='ephys_analysis',
                                  data=lfp_phase,
                                  rate=lfp_fs,
                                  unit='radians')
@@ -380,8 +367,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
         module_lfp.add_container(time_series)
 
     out_fname = session_path + '.nwb'
-    if stub:
-        out_fname = out_fname[:-4] + '_stub.nwb'
+
     print('writing NWB file...', end='', flush=True)
     with NWBHDF5IO(out_fname, mode='w') as io:
         io.write(nwbfile)

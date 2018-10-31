@@ -48,7 +48,8 @@ def parse_states(fpath):
 
 
 def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/YutaMouse41/YutaMouse41-150903',
-             subject_xls=None, include_all_lfp=False):
+             subject_xls=None, stub=False):
+
 
     subject_path, session_name = os.path.split(session_path)
     fpath_base = os.path.split(subject_path)[0]
@@ -172,29 +173,33 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
 
     # lfp
     print('reading LFPs...', end='', flush=True)
-    lfp_file = os.path.join(session_path, session_name + '.eeg')
-    all_channels = np.fromfile(lfp_file, dtype=np.int16).reshape(-1, 80)
-    all_channels_lfp = all_channels[:, all_shank_channels]
 
-    if include_all_lfp:
+    if not stub:
+        lfp_file = os.path.join(session_path, session_name + '.eeg')
+        all_channels = np.fromfile(lfp_file, dtype=np.int16).reshape(-1, 80)
+        all_channels_lfp = all_channels[:, all_shank_channels]
+
         data = DataChunkIterator(tqdm(all_channels_lfp, desc='writing lfp data'),
                                  buffer_size=int(lfp_fs*3600))
         data = H5DataIO(data, compression='gzip')
+    else:
+        all_channels = np.random.randn(1000, 100)  # use for dev testing for speed
+        data = all_channels
 
-        print('making ElectricalSeries objects for LFP...', end='', flush=True)
-        all_lfp_electrical_series = ElectricalSeries(
-            'all_lfp',
-            'lfp signal for all shank electrodes',
-            data,
-            all_table_region,
-            conversion=np.nan,
-            rate=lfp_fs,
-            resolution=np.nan)
-        all_ts.append(all_lfp_electrical_series)
-        nwbfile.add_acquisition(LFP(name='all_lfp',
-                                    electrical_series=all_lfp_electrical_series))
-        print('done.')
+    print('done.')
 
+    print('making ElectricalSeries objects for LFP...', end='', flush=True)
+    all_lfp_electrical_series = ElectricalSeries(
+        'all_lfp',
+        'lfp signal for all shank electrodes',
+        data,
+        all_table_region,
+        conversion=np.nan,
+        rate=lfp_fs,
+        resolution=np.nan)
+    all_ts.append(all_lfp_electrical_series)
+    nwbfile.add_acquisition(LFP(name='all_lfp',
+                                electrical_series=all_lfp_electrical_series))
     print('done.')
 
     electrical_series = ElectricalSeries(

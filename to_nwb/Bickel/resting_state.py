@@ -24,11 +24,10 @@ def parse_electrode_label(label):
     return device_name, number
 
 
-nwbfile = NWBFile(source='source',
-                  session_description='resting state ECoG',
+nwbfile = NWBFile(session_description='resting state ECoG',
                   identifier='0',
                   session_start_time=datetime(1900, 1, 1),
-                  file_create_date=datetime.now(),
+                  file_create_date=datetime.now().astimezone(),
                   experimenter='Stephan Bickel',
                   institution='',
                   lab='Bickel')
@@ -56,9 +55,8 @@ for i, (device_label, label, (x, y, z)) in enumerate(zip(device_labels,
                                                          electrode_positions)):
     if not (device_label == this_device):
         this_device = device_label
-        device = nwbfile.create_device(device_label, 'source')
+        device = nwbfile.create_device(device_label)
         electrode_group = nwbfile.create_electrode_group(name=device_label + ' electrode group',
-                                                         source='source',
                                                          description=' ',
                                                          device=device,
                                                          location='unknown')
@@ -71,8 +69,7 @@ electrode_table_region = nwbfile.create_electrode_table_region(
     list(range(len(electrode_positions))), 'all ECoG electrodes')
 
 nwbfile.add_acquisition(
-    LFP('source',
-        electrical_series=ElectricalSeries(
+    LFP(electrical_series=ElectricalSeries(
             'lfp', 'lfp signal for all electrodes', lfp,
             electrode_table_region, starting_time=0.0, rate=lfp_rate)))
 

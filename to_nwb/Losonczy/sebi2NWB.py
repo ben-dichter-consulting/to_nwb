@@ -1,11 +1,14 @@
 # coding: utf-8
 
-# In[174]:
-
+# Note: Use conda env py2
 
 import os
 import sys
 from datetime import datetime
+from dateutil.parser import parse
+from pytz import timezone
+
+from glob import glob
 
 import h5py
 import numpy as np
@@ -14,6 +17,7 @@ from pynwb.behavior import Position, BehavioralTimeSeries, BehavioralEvents
 from pynwb.ecephys import ElectricalSeries, LFP
 from pynwb.form.backends.hdf5.h5_utils import H5DataIO
 from pynwb.ophys import OpticalChannel, TwoPhotonSeries, Fluorescence, DfOverF, ImageSegmentation
+from pynwb.device import Device
 
 from to_nwb.neuroscope import get_channel_groups
 
@@ -53,7 +57,6 @@ def add_LFP(nwbfile, expt, count=1, region='CA1'):
     device = nwbfile.create_device(device_name)
     electrode_group = nwbfile.create_electrode_group(
         name=device_name + '_electrodes',
-        source=lfp_xml_fpath,
         description=device_name,
         device=device,
         location=region)
@@ -61,16 +64,16 @@ def add_LFP(nwbfile, expt, count=1, region='CA1'):
     x, y, z = get_position(region)
 
     for channel in channel_groups[0]:
-        nwbfile.add_electrode(channel,
-                              x, y, z,  # position?
+        nwbfile.add_electrode(float(x), float(y), float(z),  # position?
                               imp=np.nan,
                               location=region,
                               filtering='See lab.misc.lfp_helpers.ConvertFromRHD',
                               description='lfp electrode {}'.format(channel),
-                              group=electrode_group)
+                              group=electrode_group,
+                              id=channel)
 
-    lfp_table_region = nwbfile.create_electrode_table_region(list(range(len(lfp_channels))),
-                                                             'lfp electrodes')
+    lfp_table_region = nwbfile.create_electrode_table_region(
+        list(range(len(lfp_channels))), 'lfp electrodes')
 
     # TODO add conversion field for moving to V
     # TODO figure out how to link lfp data (zipping seems kludgey)
@@ -86,8 +89,8 @@ def add_LFP(nwbfile, expt, count=1, region='CA1'):
     nwbfile.add_acquisition(LFP(electrical_series=lfp_elec_series))
 
 
-def add_imaging(nwbfile, expt, z_spacing=25., device='2P Microscope', location='CA1',
-                indicator='GCaMP6f', excitation_lambda=920.):
+def add_imaging(nwbfile, expt, z_spacing=25., device_name='2P Microscope', location='CA1',
+                indicator='GCaMP6f', excitation_lambda=920., data_root=None):
 
     color_dict = {'Ch1': 'Red', 'Ch2': 'Green'}
     # Emissions for mCherry and GCaMP
@@ -106,11 +109,9 @@ def add_imaging(nwbfile, expt, z_spacing=25., device='2P Microscope', location='
 
         optical_channels.append(optical_channel)
 
-    h5_folder = os.path.dirname('/Users/bendichter/Desktop/Losonczy/from_sebi/TSeries-05042017-001/')
-    h5_file = [x for x in os.listdir(h5_folder) if x.endswith('h5')][0]
-    h5_path = os.path.join(h5_folder, h5_file)
+    h5_path = glob(os.path.join(data_root, '*.h5'))[0]
 
-    pv_xml = os.path.join(h5_folder, os.path.basename(h5_folder) + '.xml')
+    pv_xml = os.path.join(data_root, os.path.basename(data_root) + '.xml')
     pv_version = get_prairieview_version(pv_xml)
     [y_um, x_um] = get_element_size_um(pv_xml, pv_version)[-2:]
 
@@ -118,18 +119,20 @@ def add_imaging(nwbfile, expt, z_spacing=25., device='2P Microscope', location='
 
     # TODO allow for flexibility in setting device, excitation, indicator, location
     # TODO nwb-schema issue #151 needs to be resolved so we can actually use imaging data size
+
+    device = Device(device_name)
     imaging_plane = nwbfile.create_imaging_plane(
         name='Imaging Data',
         optical_channel=optical_channels,
         description='imaging data for both channels',
         device=device, excitation_lambda=excitation_lambda,
-        imaging_rate=str(1 / expt.frame_period()), indicator=indicator,
+        imaging_rate=1 / expt.frame_period(), indicator=indicator,
         location=location,
         conversion=1.0,  # Should actually be elem_size_um
         unit='um')
 
     with h5py.File(h5_path, 'r') as f:
-        all_imaging_data = f['imaging']
+        all_imaging_data = f['imaging'][:30, :5, :6, :, :]
         channel_names = f['imaging'].attrs['channel_names']
 
     # t,z,y,x,c -> t,x,y,z,c
@@ -222,7 +225,7 @@ def add_rois(nwbfile, module, expt):
 
     rois = expt.rois()
     for roi in rois:
-        ps.add_roi(roi.label, get_pixel_mask(roi), get_image_mask(roi))
+        ps.add_roi(roi.label, get_image_mask(roi))
 
     return ps
 
@@ -258,37 +261,37 @@ def add_dff(module, expt, rt_region):
 
 
 def main(argv):
+
+    data_root = '/Volumes/side_drive/data/Losonczy/from_sebi/TSeries-05042017-001'
     # Lab-side read expts
     expt = dbExperiment(10304)
-    expt.set_sima_path('/Users/bendichter/Desktop/Losonczy/from_sebi/TSeries-05042017-001/TSeries-05042017-001.sima')
-    expt.tSeriesDirectory = '/Users/bendichter/Desktop/Losonczy/from_sebi/TSeries-05042017-001'
-    expt.behavior_file = '/Users/bendichter/Desktop/Losonczy/from_sebi/TSeries-05042017-001/svr009_20170509113637.pkl'
+    expt.set_sima_path('/Volumes/side_drive/data/Losonczy/from_sebi/TSeries-05042017-001/TSeries-05042017-001.sima')
+    expt.tSeriesDirectory = data_root
+    expt.behavior_file = os.path.join(data_root, '/svr009_20170509113637.pkl')
 
     # Initialize NWBFile directly from experiment object metadata
-
+    session_start_time = timezone('US/Eastern').localize(parse(expt.get('startTime')))
     nwbfile = NWBFile(session_description='{} experiment for mouse {}'.format(
                           expt.experimentType, expt.parent.mouse_name),  # required
                       identifier='{}'.format(expt.trial_id),  # required
-                      session_start_time=expt.get('startTime'),  # required
-                      file_create_date=datetime.now(),  # optional
+                      session_start_time=session_start_time,  # required
                       experimenter=expt.project_name,  # optional
                       session_id='{}-{}-{}'.format(
                           expt.get('condition'), expt.get('day'), expt.get('session')),  # optional
                       institution='Columbia University',  # optional
                       lab='Losonczy Lab')  # optional
 
-    add_imaging(nwbfile, expt)
+    add_imaging(nwbfile, expt, data_root=data_root)
 
     add_LFP(nwbfile, expt)
 
     add_behavior(nwbfile, expt)
 
-
     imaging_module = nwbfile.create_processing_module(name='im_analysis',
                                                       description='Data relevant to imaging')
 
     ps = add_rois(nwbfile, imaging_module, expt)
-    """
+
     rt_region = ps.create_roi_table_region('all ROIs', region=list(range(len(expt.rois()))))
 
     add_signals(imaging_module, expt, rt_region)
@@ -305,7 +308,6 @@ def main(argv):
     with NWBHDF5IO(fout) as io:
         io.read()
 
-    """
     TODO:
     Motion Corrections (just displacements?)
         for each frame, rigid body

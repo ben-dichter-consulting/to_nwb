@@ -68,7 +68,6 @@ def add_LFP(nwbfile, expt, count=1, region='CA1'):
                               imp=np.nan,
                               location=region,
                               filtering='See lab.misc.lfp_helpers.ConvertFromRHD',
-                              description='lfp electrode {}'.format(channel),
                               group=electrode_group,
                               id=channel)
 

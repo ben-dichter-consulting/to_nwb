@@ -4,7 +4,6 @@
 
 import os
 import sys
-from datetime import datetime
 from dateutil.parser import parse
 from pytz import timezone
 

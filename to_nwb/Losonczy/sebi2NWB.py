@@ -7,6 +7,8 @@ import sys
 from dateutil.parser import parse
 from pytz import timezone
 
+from tqdm import tqdm
+
 from glob import glob
 
 import h5py
@@ -16,6 +18,8 @@ from pynwb.behavior import Position, BehavioralTimeSeries, BehavioralEvents
 from pynwb.ecephys import ElectricalSeries, LFP
 from pynwb.form.backends.hdf5.h5_utils import H5DataIO
 from pynwb.ophys import OpticalChannel, TwoPhotonSeries, Fluorescence, DfOverF, ImageSegmentation
+from pynwb.form.data_utils import DataChunkIterator
+
 
 from to_nwb.neuroscope import get_channel_groups
 
@@ -87,7 +91,7 @@ def add_LFP(nwbfile, expt, count=1, region='CA1'):
 
 
 def add_imaging(nwbfile, expt, z_spacing=25., device_name='2P Microscope', location='CA1',
-                indicator='GCaMP6f', excitation_lambda=920., data_root=None):
+                indicator='GCaMP6f', excitation_lambda=920., data_root=None, stub=False):
 
     color_dict = {'Ch1': 'Red', 'Ch2': 'Green'}
     # Emissions for mCherry and GCaMP
@@ -131,21 +135,28 @@ def add_imaging(nwbfile, expt, z_spacing=25., device_name='2P Microscope', locat
         reference_frame='reference_frame',
         unit='um')
 
-    with h5py.File(h5_path, 'r') as f:
-        all_imaging_data = f['imaging'][:30, :5, :6, :, :]
-        channel_names = f['imaging'].attrs['channel_names']
+    f = h5py.File(h5_path, 'r')
+    imaging_data = f['imaging']
+    channel_names = f['imaging'].attrs['channel_names']
 
-    # t,z,y,x,c -> t,x,y,z,c
-    all_imaging_data = np.swapaxes(all_imaging_data, 1, 3)
+    for c, channel_name in enumerate(channel_names):
+        if not stub:
+            data_in = H5DataIO(
+                DataChunkIterator(
+                    tqdm(
+                        (np.swapaxes(data[..., c], 0, 2) for data in imaging_data),
+                        total=imaging_data.shape[0]
+                    ), buffer_size=5000
+                ), compression='gzip'
+            )
 
-    # t,x,y,z,c -> c,t,(x,y,z)
-    all_imaging_data = np.rollaxis(all_imaging_data, 4)
+        else:
+            data_in = imaging_data[:30, :5, :6, :, :]  # use for dev testing for speed
 
-    for channel_name, imaging_data in zip(channel_names, all_imaging_data):
         # TODO parse env file to add power and pmt gain?
         image_series = TwoPhotonSeries(name='2p_Series_' + channel_name,
                                        dimension=expt.frame_shape()[:-1],
-                                       data=H5DataIO(data=imaging_data, compression='gzip'),
+                                       data=data_in,
                                        imaging_plane=imaging_plane,
                                        rate=1 / expt.frame_period(),
                                        starting_time=0.,
@@ -239,7 +250,7 @@ def add_signals(module, expt, rt_region):
     sigs = expt.imagingData(dFOverF=None)
     fluor.create_roi_response_series(name='Fluorescence',
                                      data=sigs.squeeze(), rate=fs, unit='NA',
-                                     rois=rt_region, starting_time=0.0)
+                                     rois=rt_region)
 
     module.add_data_interface(fluor)
 
@@ -251,7 +262,6 @@ def add_dff(module, expt, rt_region):
     fluor = DfOverF(name='DFF')
     sigs = expt.imagingData(dFOverF=None)
     fluor.create_roi_response_series(name='DFF',
-                                     starting_time=0.0,
                                      data=sigs.squeeze(), rate=fs, unit='NA',
                                      rois=rt_region)
 

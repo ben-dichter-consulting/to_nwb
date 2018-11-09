@@ -16,7 +16,6 @@ from pynwb.behavior import Position, BehavioralTimeSeries, BehavioralEvents
 from pynwb.ecephys import ElectricalSeries, LFP
 from pynwb.form.backends.hdf5.h5_utils import H5DataIO
 from pynwb.ophys import OpticalChannel, TwoPhotonSeries, Fluorescence, DfOverF, ImageSegmentation
-from pynwb.device import Device
 
 from to_nwb.neuroscope import get_channel_groups
 
@@ -118,7 +117,8 @@ def add_imaging(nwbfile, expt, z_spacing=25., device_name='2P Microscope', locat
     # TODO allow for flexibility in setting device, excitation, indicator, location
     # TODO nwb-schema issue #151 needs to be resolved so we can actually use imaging data size
 
-    device = Device(device_name)
+    device = nwbfile.create_device(device_name)
+
     imaging_plane = nwbfile.create_imaging_plane(
         name='Imaging Data',
         optical_channel=optical_channels,
@@ -127,6 +127,8 @@ def add_imaging(nwbfile, expt, z_spacing=25., device_name='2P Microscope', locat
         imaging_rate=1 / expt.frame_period(), indicator=indicator,
         location=location,
         conversion=1.0,  # Should actually be elem_size_um
+        manifold=np.ones((2, 2, 2, 3)),
+        reference_frame='reference_frame',
         unit='um')
 
     with h5py.File(h5_path, 'r') as f:
@@ -167,34 +169,33 @@ def add_behavior(nwbfile, expt):
     # Add Normalized Position
 
     pos = Position(name='Normalized Position')
-    pos.create_spatial_series(name='Normalized Position',
+    pos.create_spatial_series(name='Normalized Position', rate=fs,
                               data=bd['treadmillPosition'], reference_frame='0 is belt start',
-                              conversion=0.001 * bd['trackLength'], rate=fs, starting_time=0.0)
+                              conversion=0.001 * bd['trackLength'])
 
     behavior_module.add_container(pos)
 
     # Add Licking
 
     licking = BehavioralTimeSeries(name='Licking')
-    licking.create_timeseries(name='Licking', data=bd['licking'], starting_time=0.0,
-                              rate=fs, description='1 if mouse licked during this imaging frame')
+    licking.create_timeseries(name='Licking', data=bd['licking'], rate=fs, unit='na',
+                              description='1 if mouse licked during this imaging frame')
 
     behavior_module.add_container(licking)
 
     # Add Water Reward Delivery
 
     water = BehavioralTimeSeries(name='Water')
-    water.create_timeseries(name='Water', data=bd['water'], starting_time=0.0,
-                            rate=fs, description='1 if water was delivered during this imaging frame')
+    water.create_timeseries(name='Water', data=bd['water'], rate=fs, unit='na',
+                            description='1 if water was delivered during this imaging frame')
 
     behavior_module.add_container(water)
 
     # Add Lap Times
-
     laps = BehavioralEvents(name='Lap Starts')
     # TODO probably not best to have laps as data and timestamps here
-    laps.create_timeseries(name='Lap Starts', data=bd['lap'],
-                           timestamps=bd['lap'], description='Frames at which laps began')
+    laps.create_timeseries(name='Lap Starts', data=bd['lap'], timestamps=bd['lap'],
+                           description='Frames at which laps began', unit='na')
 
     behavior_module.add_container(laps)
 
@@ -217,13 +218,12 @@ def add_rois(nwbfile, module, expt):
 
     img_seg = ImageSegmentation()
     module.add_data_interface(img_seg)
-    ps = img_seg.create_plane_segmentation(description='ROIs',
-                                           imaging_plane=nwbfile.get_imaging_plane('Imaging Data'),
-                                           name='Plane Segmentation')
+    ps = img_seg.create_plane_segmentation(name='Plane Segmentation', description='ROIs',
+                                           imaging_plane=nwbfile.get_imaging_plane('Imaging Data'))
 
     rois = expt.rois()
     for roi in rois:
-        ps.add_roi(roi.label, get_image_mask(roi))
+        ps.add_roi(image_mask=get_image_mask(roi))
 
     return ps
 
@@ -265,7 +265,7 @@ def main(argv):
     expt = dbExperiment(10304)
     expt.set_sima_path('/Volumes/side_drive/data/Losonczy/from_sebi/TSeries-05042017-001/TSeries-05042017-001.sima')
     expt.tSeriesDirectory = data_root
-    expt.behavior_file = os.path.join(data_root, '/svr009_20170509113637.pkl')
+    expt.behavior_file = os.path.join(data_root, 'svr009_20170509113637.pkl')
 
     # Initialize NWBFile directly from experiment object metadata
     session_start_time = timezone('US/Eastern').localize(parse(expt.get('startTime')))
@@ -296,8 +296,7 @@ def main(argv):
 
     add_dff(imaging_module, expt, rt_region)
 
-    """
-    fout = '/Users/bendichter/Desktop/Losonczy/from_sebi/TSeries-05042017-001.nwb'
+    fout = os.path.join(data_root, 'test_file.nwb')
     print('writing...')
 
     with NWBHDF5IO(fout, 'w') as io:
@@ -305,7 +304,7 @@ def main(argv):
 
     with NWBHDF5IO(fout) as io:
         io.read()
-
+    """
     TODO:
     Motion Corrections (just displacements?)
         for each frame, rigid body

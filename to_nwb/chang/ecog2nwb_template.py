@@ -1,13 +1,33 @@
+import os
 from datetime import datetime
+
+from pytz import timezone
 
 import numpy as np
 import pandas as pd
-from pynwb import NWBFile, TimeSeries, NWBHDF5IO
+from pynwb import NWBFile, TimeSeries, NWBHDF5IO, get_manager
 from pynwb.ecephys import ElectricalSeries, LFP
 from pynwb.file import Subject
 from pynwb.misc import IntervalSeries
 from scipy.io.wavfile import read as wavread
 from nwbext_ecog.ecog_manual import Surface, CorticalSurfaces
+
+# get_manager must come after dynamic imports
+manager = get_manager()
+
+external_cortical_mesh = True
+
+
+def add_cortical_surfaces(nwbfile):
+    cortical_surfaces = CorticalSurfaces()
+    for name in ('a', 'b', 'c'):
+        vertices = np.random.randn(10, 3)
+        faces = np.random.randint(0, 9, (15, 3))
+        cortical_surfaces.create_surface(name=name, faces=faces, vertices=vertices)
+    nwbfile.add_acquisition(cortical_surfaces)
+
+    return nwbfile
+
 
 nwbfile = NWBFile('session description', 'session identifier',
                   datetime.now().astimezone(), institution='UCSF',
@@ -126,15 +146,23 @@ nwbfile.add_stimulus(
 )
 
 # cortical surfaces
-cortical_surfaces = CorticalSurfaces()
-for name in ('a', 'b', 'c'):
-    vertices = np.random.randn(10, 3)
-    faces = np.random.randint(0, 9, (15, 3))
-    cortical_surfaces.create_surface(name=name, faces=faces, vertices=vertices)
-nwbfile.add_acquisition(cortical_surfaces)
+if not external_cortical_mesh:
+    nwbfile = add_cortical_surfaces(nwbfile)
+else:
+    anat_fpath = 'S1.nwbaux'
+    anat_nwbfile = NWBFile(
+        session_description='session description', identifier='S1',
+        session_start_time=datetime(1900, 1, 1).astimezone(timezone('UTC')))
+    anat_nwbfile = add_cortical_surfaces(anat_nwbfile)
+    with NWBHDF5IO(anat_fpath, manager=manager, mode='w') as anat_io:
+        anat_io.write(anat_nwbfile)
+    anat_read_io = NWBHDF5IO(anat_fpath, manager=manager, mode='r')
+    anat_nwbfile = anat_read_io.read()
+    cortical_surfaces = anat_nwbfile.acquisition['cortical_surfaces']
+    nwbfile.add_acquisition(cortical_surfaces)
 
-fout_path = 'dest_file.nwb'
-with NWBHDF5IO(fout_path, 'w') as io:
+fout_path = 'ecog_example.nwb'
+with NWBHDF5IO(fout_path, manager=manager, mode='w') as io:
     io.write(nwbfile)
 
 # test read

@@ -110,14 +110,14 @@ for spike_times, electrodes, waveform_mean in \
 
 # analog data
 # microphone data
+# Be careful! This might contain identifying information
 mic_path = '/Users/bendichter/Desktop/Chang/video_abstract/word_emphasis.wav'
 mic_fs, mic_data = wavread(mic_path)
 nwbfile.add_acquisition(
     TimeSeries('microphone', mic_data, 'audio unit', rate=float(mic_fs),
                description="audio recording from microphone in room")
 )
-# Be careful! This might contain identifying information all analog data can be
-# added like the microphone example (speaker, button press, etc.)
+# all analog data can be added like the microphone example (speaker, button press, etc.)
 spk_path = '/Users/bendichter/Desktop/Chang/video_abstract/word_emphasis.wav'
 spk_fs, spk_data = wavread(spk_path)
 nwbfile.add_stimulus(

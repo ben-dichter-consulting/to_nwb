@@ -7,6 +7,7 @@ from pynwb.ecephys import ElectricalSeries, LFP
 from pynwb.file import Subject
 from pynwb.misc import IntervalSeries
 from scipy.io.wavfile import read as wavread
+from nwbext_ecog.ecog_manual import Surface, CorticalSurfaces
 
 nwbfile = NWBFile('session description', 'session identifier',
                   datetime.now().astimezone(), institution='UCSF',
@@ -107,7 +108,6 @@ for spike_times, electrodes, waveform_mean in \
                      electrodes=electrodes,
                      waveform_mean=waveform_mean)
 
-
 # analog data
 # microphone data
 # Be careful! This might contain identifying information
@@ -124,6 +124,14 @@ nwbfile.add_stimulus(
     TimeSeries('speaker1', spk_data, 'audio unit', rate=float(spk_fs),
                description="speaker recording")
 )
+
+# cortical surfaces
+cortical_surfaces = CorticalSurfaces()
+for name in ('a', 'b', 'c'):
+    vertices = np.random.randn(10, 3)
+    faces = np.random.randint(0, 9, (15, 3))
+    cortical_surfaces.create_surface(name=name, faces=faces, vertices=vertices)
+nwbfile.add_acquisition(cortical_surfaces)
 
 fout_path = 'dest_file.nwb'
 with NWBHDF5IO(fout_path, 'w') as io:

@@ -1,16 +1,14 @@
-import os
 from datetime import datetime
-
-from pytz import timezone
 
 import numpy as np
 import pandas as pd
+from nwbext_ecog.ecog_manual import CorticalSurfaces
 from pynwb import NWBFile, TimeSeries, NWBHDF5IO, get_manager
 from pynwb.ecephys import ElectricalSeries, LFP
 from pynwb.file import Subject
 from pynwb.misc import IntervalSeries
+from pytz import timezone
 from scipy.io.wavfile import read as wavread
-from nwbext_ecog.ecog_manual import Surface, CorticalSurfaces
 
 # get_manager must come after dynamic imports
 manager = get_manager()
@@ -168,3 +166,6 @@ with NWBHDF5IO(fout_path, manager=manager, mode='w') as io:
 # test read
 with NWBHDF5IO(fout_path, 'r') as io:
     io.read()
+
+if external_cortical_mesh:
+    anat_read_io.close()

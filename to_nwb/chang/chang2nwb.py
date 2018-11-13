@@ -69,7 +69,7 @@ def gen_htk_num(i):
     return str(i//64+1) + str(np.mod(i, 64)+1)
 
 
-def add_cortical_surface(nwbfile, pial_files):
+def add_cortical_surfaces(nwbfile, pial_files):
 
     names = []
     cortical_surface_object = CorticalSurfaces()
@@ -87,7 +87,7 @@ def add_cortical_surface(nwbfile, pial_files):
         names.append(name)
         cortical_surface_object.create_surface(faces=tri, vertices=vert, name=name)
     nwbfile.add_acquisition(cortical_surface_object)
-    return nwbfile, names
+    return nwbfile
 
 
 def readhtks(htkpath, elecs=None, use_tqdm=True):
@@ -166,6 +166,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
 
     if outpath is None:
         outpath = blockpath + '.nwb'
+    out_base_path = os.path.split(outpath)[0]
 
     if session_start_time is None:
         session_start_time = datetime(1900, 1, 1).astimezone(timezone('UTC'))
@@ -180,7 +181,6 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     lfp_path = path.join(blockpath, 'RawHTK')
     ecog400_path = path.join(blockpath, 'ecog400', 'ecog.mat')
     elec_metadata_file = path.join(subj_imaging_path, 'elecs', 'TDT_elecs_all.mat')
-    aux_file = path.join(blockpath, 'Analog', 'ANIN4.htk')
     hilbdir = path.join(blockpath, 'HilbAA_70to150_8band')
     mesh_path = path.join(subj_imaging_path, 'Meshes')
     pial_files = glob.glob(path.join(mesh_path, '*pial.mat'))
@@ -285,8 +285,8 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     if mini:
         data = data[:2000]
 
-    lfp_ts = ElectricalSeries('LFP', H5DataIO(data, compression='gzip'),
-                              all_elecs, rate=rate, description=ts_desc,
+    lfp_ts = ElectricalSeries(data=H5DataIO(data, compression='gzip'),
+                              electrodes=all_elecs, rate=rate, description=ts_desc,
                               conversion=0.001)
     nwbfile.add_acquisition(lfp_ts)
 
@@ -336,22 +336,20 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
         hilb_mod.add_container(hs)
 
     if cortical_mesh == 'external':
-        anat_fpath = path.join(basepath, subject + '_cortical_surface.nwbaux')
-        anat_nwbfile = NWBFile(session_description='',
-                               identifier=subject + '_cortical_surface',
-                               session_start_time=datetime(1900, 1, 1))  # placeholder since this argument is required
-        anat_nwbfile, pial_names = add_cortical_surface(anat_nwbfile, pial_files)
+        anat_fpath = path.join(out_base_path, subject + '_cortical_surface.nwbaux')
+        anat_nwbfile = NWBFile(
+            session_description=subject + ' anatomy', identifier=subject + '_cortical_surface',
+            session_start_time=datetime(1900, 1, 1).astimezone(timezone('UTC')))
+        anat_nwbfile = add_cortical_surfaces(anat_nwbfile, pial_files)
         with NWBHDF5IO(anat_fpath, manager=manager, mode='w') as anat_io:
             anat_io.write(anat_nwbfile)
-
         anat_read_io = NWBHDF5IO(anat_fpath, manager=manager, mode='r')
         anat_nwbfile = anat_read_io.read()
-        for pial_name in pial_names:
-            surface_objects = anat_nwbfile.acquisition['cortical_surfaces'].surfaces[pial_name]
-            nwbfile.add_acquisition(surface_objects)
+        cortical_surfaces = anat_nwbfile.acquisition['cortical_surfaces']
+        nwbfile.add_acquisition(cortical_surfaces)
 
     elif cortical_mesh == 'internal':
-        nwbfile, surface_names = add_cortical_surface(nwbfile, pial_files)
+        nwbfile, surface_names = add_cortical_surfaces(nwbfile, pial_files)
     elif cortical_mesh is False:
         pass
     else:

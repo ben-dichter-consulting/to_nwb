@@ -60,6 +60,7 @@ def add_cortical_surface(nwbfile, pial_files):
 
     names = []
     surfaces = []
+    cortical_surface_object = CorticalSurfaces()
     for pial_file in pial_files:
         matin = loadmat(pial_file)
         if 'cortex' in matin:
@@ -72,8 +73,8 @@ def add_cortical_surface(nwbfile, pial_files):
         vert = matin[x]['vert'][0][0]
         name = pial_file[pial_file.find('Meshes')+7:-4]
         names.append(name)
-        surfaces.append(Surface(faces=tri, vertices=vert, name=name))
-    nwbfile.add_acquisition(CorticalSurfaces(surfaces=surfaces))
+        cortical_surface_object.create_surface(faces=tri, vertices=vert, name=name)
+    nwbfile.add_acquisition(cortical_surface_object)
     return nwbfile, names
 
 
@@ -82,7 +83,7 @@ def readhtks(htkpath, elecs=None, use_tqdm=True):
         elecs = range(len(glob.glob(path.join(htkpath, 'Wav*.htk'))))
     data = []
     if use_tqdm:
-        this_iter = tqdm(elecs)
+        this_iter = tqdm(elecs, desc='reading electrodes')
     else:
         this_iter = elecs
     for i in this_iter:
@@ -250,6 +251,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
         if verbose:
             print('reading htk acquisition...', flush=True)
         data, rate = readhtks(lfp_path, lfp_elecs)
+        data = data.squeeze()
         if verbose:
             print('done', flush=True)
         if ekg_elecs:

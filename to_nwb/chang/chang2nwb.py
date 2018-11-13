@@ -102,7 +102,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
               session_description=None, identifier=None, anin4=False,
               ecog_format='htk', cortical_mesh=False, include_pitch=False,
               speakers=True, mic=True, mini=False, hilb=False, verbose=False,
-              **kwargs):
+              imaging_path=None, **kwargs):
     """
 
     Parameters
@@ -157,6 +157,12 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     if session_start_time is None:
         session_start_time = datetime(1900, 1, 1).astimezone(timezone('UTC'))
 
+    if imaging_path is None:
+        subj_imaging_path = path.join(basepath, 'imaging')
+    else:
+        subj_imaging_path = '/data_store2/imaging/subjects/' + subject
+
+
     # file paths
     mic_file = path.join(blockpath, 'Analog', 'ANIN1.htk')
     L_speaker_file = path.join(blockpath, 'Analog', 'ANIN2.htk')
@@ -167,7 +173,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     elec_metadata_file = path.join(basepath, 'imaging', 'elecs', 'TDT_elecs_all.mat')
     aux_file = path.join(blockpath, 'Analog', 'ANIN4.htk')
     hilbdir = path.join(blockpath, 'HilbAA_70to150_8band')
-    mesh_path = path.join(basepath, 'imaging', 'Meshes')
+    mesh_path = path.join(subj_imaging_path, 'Meshes')
     pial_files = glob.glob(path.join(mesh_path, '*pial.mat'))
     if cortical_mesh and not len(pial_files):
         raise Warning('pial files not found')

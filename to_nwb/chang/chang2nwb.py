@@ -4,6 +4,8 @@ import os
 from datetime import datetime
 from os import path
 
+from scipy.io.wavfile import read as wavread
+
 import numpy as np
 import pandas as pd
 import scipy.io as sio
@@ -36,6 +38,15 @@ manager = get_manager()
 Convert ECoG to NWB
 """
 
+
+def get_analog(blockpath, num=1):
+    wav_path = path.join(blockpath, 'Analog', 'analog' + str(num) + '.wav')
+    if os.path.isfile(wav_path):
+        return wavread(wav_path)
+    htk_path = path.join(blockpath, 'Analog', 'ANIN' + str(num) + '.htk')
+    if os.path.isfile(htk_path):
+        return readHTK(htk_path, scale_s_rate=True)
+    raise Exception('no analog path found for ' + str(num))
 
 def get_subject(blockname):
     return blockname[:blockname.find('_')]
@@ -96,7 +107,7 @@ def readhtks(htkpath, elecs=None, use_tqdm=True):
 
     rate = htk['sampling_rate']
 
-    return data, rate
+    return rate, data
 
 
 def chang2nwb(blockpath, outpath=None, session_start_time=None,
@@ -164,9 +175,6 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
         subj_imaging_path = os.path.join(imaging_path, subject)
 
     # file paths
-    mic_file = path.join(blockpath, 'Analog', 'ANIN1.htk')
-    L_speaker_file = path.join(blockpath, 'Analog', 'ANIN2.htk')
-    R_speaker_file = path.join(blockpath, 'Analog', 'ANIN3.htk')
     bad_time_file = path.join(blockpath, 'Artifacts', 'badTimeSegments.mat')
     lfp_path = path.join(blockpath, 'RawHTK')
     ecog400_path = path.join(blockpath, 'ecog400', 'ecog.mat')
@@ -250,12 +258,12 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     if ecog_format == 'htk':
         if verbose:
             print('reading htk acquisition...', flush=True)
-        data, rate = readhtks(lfp_path, lfp_elecs)
+        rate, data = readhtks(lfp_path, lfp_elecs)
         data = data.squeeze()
         if verbose:
             print('done', flush=True)
         if ekg_elecs:
-            ekg_data, _ = readhtks(lfp_path, ekg_elecs)
+            ekg_data = readhtks(lfp_path, ekg_elecs)[1]
             ekg_ts = TimeSeries('EKG', H5DataIO(ekg_data, compression='gzip'),
                                 rate=rate, unit='V', conversion=.001,
                                 description='electrotorticography')
@@ -281,37 +289,25 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
                               conversion=0.001)
     nwbfile.add_acquisition(lfp_ts)
 
-
-
     if mic:
         # Add microphone recording from room
-        mic_htk = readHTK(mic_file, scale_s_rate=True)
-        nwbfile.add_acquisition(TimeSeries('microphone',
-                                           mic_htk['data'][0],
-                                           'audio unit',
-                                           rate=mic_htk['sampling_rate'],
-                                           description="audio recording from "
-                                                       "microphone in room"))
+        fs, data = get_analog(blockpath, 1)
+        nwbfile.add_acquisition(TimeSeries('microphone', data, 'audio unit', rate=fs,
+                                           description="audio recording from microphone in room"))
     if speakers:
+        fs, data = get_analog(blockpath, 2)
         # Add audio stimulus 1
-        stim_htk = readHTK(L_speaker_file, scale_s_rate=True)
-        nwbfile.add_stimulus(TimeSeries('speaker 1',
-                                        stim_htk['data'][0], 'audio unit',
-                                        starting_time=0.0,
-                                        rate=stim_htk['sampling_rate'],
+        nwbfile.add_stimulus(TimeSeries('speaker 1', data, 'NA', rate=fs,
                                         description="audio stimulus 1"))
 
         # Add audio stimulus 2
-        stim_htk = readHTK(R_speaker_file, scale_s_rate=True)
-        nwbfile.add_stimulus(TimeSeries('speaker 2', stim_htk['data'][0],
-                                        'audio unit', rate=stim_htk['sampling_rate'],
+        fs, data = get_analog(blockpath, 3)
+        nwbfile.add_stimulus(TimeSeries('speaker 2', data, 'NA', rate=fs,
                                         description='the second stimulus source'))
 
     if anin4:
-        aux_htk = readHTK(aux_file, scale_s_rate=True)
-        nwbfile.add_acquisition(TimeSeries(anin4,
-                                           aux_htk['data'][0],
-                                           'aux unit', rate=aux_htk['sampling_rate'],
+        fs, data = get_analog(blockpath, 4)
+        nwbfile.add_acquisition(TimeSeries(anin4, data, 'aux unit', rate=fs,
                                            description="aux analog recording"))
 
     # Add bad time segments

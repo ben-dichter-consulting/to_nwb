@@ -11,7 +11,7 @@ import pandas as pd
 import scipy.io as sio
 from h5py import File
 from pynwb import NWBFile, TimeSeries, get_manager, NWBHDF5IO
-from pynwb.ecephys import ElectricalSeries
+from pynwb.ecephys import ElectricalSeries, LFP
 from pynwb.form.backends.hdf5 import H5DataIO
 from pynwb.misc import IntervalSeries
 from scipy.io import loadmat
@@ -285,10 +285,11 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     if mini:
         data = data[:2000]
 
-    lfp_ts = ElectricalSeries(data=H5DataIO(data, compression='gzip'),
+    lfp_ts = ElectricalSeries(name='ECoG', data=H5DataIO(data, compression='gzip'),
                               electrodes=all_elecs, rate=rate, description=ts_desc,
                               conversion=0.001)
-    nwbfile.add_acquisition(lfp_ts)
+    lfp = LFP(electrical_series=lfp_ts)
+    nwbfile.add_acquisition(lfp)
 
     if mic:
         # Add microphone recording from room

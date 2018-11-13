@@ -338,12 +338,13 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
 
     if cortical_mesh == 'external':
         anat_fpath = path.join(out_base_path, subject + '_cortical_surface.nwbaux')
-        anat_nwbfile = NWBFile(
-            session_description=subject + ' anatomy', identifier=subject + '_cortical_surface',
-            session_start_time=datetime(1900, 1, 1).astimezone(timezone('UTC')))
-        anat_nwbfile = add_cortical_surfaces(anat_nwbfile, pial_files)
-        with NWBHDF5IO(anat_fpath, manager=manager, mode='w') as anat_io:
-            anat_io.write(anat_nwbfile)
+        if not os.path.isfile(anat_fpath):
+            anat_nwbfile = NWBFile(
+                session_description=subject + ' anatomy', identifier=subject + '_cortical_surface',
+                session_start_time=datetime(1900, 1, 1).astimezone(timezone('UTC')))
+            anat_nwbfile = add_cortical_surfaces(anat_nwbfile, pial_files)
+            with NWBHDF5IO(anat_fpath, manager=manager, mode='w') as anat_io:
+                anat_io.write(anat_nwbfile)
         anat_read_io = NWBHDF5IO(anat_fpath, manager=manager, mode='r')
         anat_nwbfile = anat_read_io.read()
         cortical_surfaces = anat_nwbfile.acquisition['cortical_surfaces']

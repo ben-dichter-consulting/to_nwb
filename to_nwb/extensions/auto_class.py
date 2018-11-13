@@ -71,7 +71,7 @@ def spec2docval(spec, prefix=''):
     args_spec = []
 
     if 'attributes' in spec:
-        args_spec += attributes2docval(spec['attributes'])
+        args_spec += attributes2docval(spec['attributes'], prefix)
 
     if 'groups' in spec:
         for group in spec['groups']:
@@ -183,7 +183,6 @@ def get_class(namespace, data_type, init_pre=lambda **kwargs: None,
                 setattr(self, attr, val)
             except AttributeError:
                 pass
-        self = spec2obj(self, spec, **kwargs)
         init_post(**kwargs)
 
     d = {'__init__': __init__, '__nwbfields__': __nwbfields__}

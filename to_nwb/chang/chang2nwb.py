@@ -178,6 +178,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
 
     # file paths
     bad_time_file = path.join(blockpath, 'Artifacts', 'badTimeSegments.mat')
+    bad_channels_file = path.join(blockpath, 'Artifacts', 'badChannels.txt')
     lfp_path = path.join(blockpath, 'RawHTK')
     ecog400_path = path.join(blockpath, 'ecog400', 'ecog.mat')
     elec_metadata_file = path.join(subj_imaging_path, 'elecs', 'TDT_elecs_all.mat')
@@ -229,6 +230,11 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
                       session_start_time, datetime.now().astimezone(),
                       institution='University of California, San Francisco',
                       lab='Chang Lab', **kwargs)
+
+    # I think bad channels is 1-indexed but I'm not sure
+    if path.isfile(bad_channels_file) and os.stat(bad_channels_file).st_size:
+        dat = pd.read_csv(bad_channels_file, header=None, delimiter='  ')
+        bad_channel_inds = dat.values.ravel() - 1
 
     elec_counter = 0
     devices = remove_duplicates(elec_grp_device)

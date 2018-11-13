@@ -160,8 +160,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     if imaging_path is None:
         subj_imaging_path = path.join(basepath, 'imaging')
     else:
-        subj_imaging_path = '/data_store2/imaging/subjects/' + subject
-
+        subj_imaging_path = os.path.join(imaging_path, subject)
 
     # file paths
     mic_file = path.join(blockpath, 'Analog', 'ANIN1.htk')

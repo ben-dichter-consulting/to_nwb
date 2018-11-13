@@ -169,7 +169,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     bad_time_file = path.join(blockpath, 'Artifacts', 'badTimeSegments.mat')
     lfp_path = path.join(blockpath, 'RawHTK')
     ecog400_path = path.join(blockpath, 'ecog400', 'ecog.mat')
-    elec_metadata_file = path.join(imaging_path, 'elecs', 'TDT_elecs_all.mat')
+    elec_metadata_file = path.join(subj_imaging_path, 'elecs', 'TDT_elecs_all.mat')
     aux_file = path.join(blockpath, 'Analog', 'ANIN4.htk')
     hilbdir = path.join(blockpath, 'HilbAA_70to150_8band')
     mesh_path = path.join(subj_imaging_path, 'Meshes')

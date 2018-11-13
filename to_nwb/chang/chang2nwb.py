@@ -16,6 +16,8 @@ from pynwb.misc import IntervalSeries
 from scipy.io import loadmat
 from tqdm import tqdm
 
+from pytz import timezone
+
 from .HTK import readHTK
 from ..utils import remove_duplicates
 
@@ -96,7 +98,7 @@ def readhtks(htkpath, elecs=None, use_tqdm=True):
     return data, rate
 
 
-def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
+def chang2nwb(blockpath, outpath=None, session_start_time=None,
               session_description=None, identifier=None, anin4=False,
               ecog_format='htk', cortical_mesh=False, include_pitch=False,
               speakers=True, mic=True, mini=False, hilb=False, verbose=False,
@@ -152,6 +154,9 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
     if outpath is None:
         outpath = blockpath + '.nwb'
 
+    if session_start_time is None:
+        session_start_time = datetime(1900, 1, 1).astimezone(timezone('UTC'))
+
     # file paths
     mic_file = path.join(blockpath, 'Analog', 'ANIN1.htk')
     L_speaker_file = path.join(blockpath, 'Analog', 'ANIN2.htk')
@@ -166,7 +171,6 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
     pial_files = glob.glob(path.join(mesh_path, '*pial.mat'))
     if cortical_mesh and not len(pial_files):
         raise Warning('pial files not found')
-
 
     # Get metadata for all electrodes
     elecs_metadata = sio.loadmat(elec_metadata_file)
@@ -207,7 +211,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
 
     # Create the NWB file object
     nwbfile = NWBFile(session_description, identifier,
-                      session_start_time, datetime.now(),
+                      session_start_time, datetime.now().astimezone(),
                       institution='University of California, San Francisco',
                       lab='Chang Lab', **kwargs)
 
@@ -283,7 +287,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
         mic_htk = readHTK(mic_file, scale_s_rate=True)
         nwbfile.add_acquisition(TimeSeries('microphone',
                                            mic_htk['data'][0],
-                                           'audio unit', starting_time=0.0,
+                                           'audio unit',
                                            rate=mic_htk['sampling_rate'],
                                            description="audio recording from "
                                                        "microphone in room"))
@@ -299,16 +303,14 @@ def chang2nwb(blockpath, outpath=None, session_start_time=datetime(1900, 1, 1),
         # Add audio stimulus 2
         stim_htk = readHTK(R_speaker_file, scale_s_rate=True)
         nwbfile.add_stimulus(TimeSeries('speaker 2', stim_htk['data'][0],
-                                        'audio unit', starting_time=0.0,
-                                        rate=stim_htk['sampling_rate'],
+                                        'audio unit', rate=stim_htk['sampling_rate'],
                                         description='the second stimulus source'))
 
     if anin4:
         aux_htk = readHTK(aux_file, scale_s_rate=True)
         nwbfile.add_acquisition(TimeSeries(anin4,
                                            aux_htk['data'][0],
-                                           'aux unit', starting_time=0.0,
-                                           rate=aux_htk['sampling_rate'],
+                                           'aux unit', rate=aux_htk['sampling_rate'],
                                            description="aux analog recording"))
 
     # Add bad time segments

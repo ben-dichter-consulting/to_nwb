@@ -237,15 +237,9 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
         )
 
         for idx, elec_data in device_data.iterrows():
-            nwbfile.add_electrode(idx,
-                                  float(coord[idx, 0]),
-                                  float(coord[idx, 1]),
-                                  float(coord[idx, 2]),
-                                  imp=np.nan,
-                                  location=elec_data['loc'],
-                                  filtering='none',
-                                  description=elec_data['short_name'],
-                                  group=electrode_group)
+            nwbfile.add_electrode(
+                id=idx, x=float(coord[idx, 0]), y=float(coord[idx, 1]), z=float(coord[idx, 2]),
+                imp=np.nan, location=elec_data['loc'], filtering='none', group=electrode_group)
             elec_counter += 1
 
     all_elecs = nwbfile.create_electrode_table_region(

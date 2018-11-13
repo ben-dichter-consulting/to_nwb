@@ -320,7 +320,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
         [bad_timepoints_ts.add_interval(start, stop) for start, stop in bad_time]
 
         if len(bad_time) > 0:
-            nwbfile.add_raw_timeseries(bad_timepoints_ts)
+            nwbfile.add_acquisition(bad_timepoints_ts)
 
     if hilb:
         data, rate = readhtks(hilbdir)

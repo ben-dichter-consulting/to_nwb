@@ -42,11 +42,13 @@ Convert ECoG to NWB
 def get_analog(blockpath, num=1):
     wav_path = path.join(blockpath, 'Analog', 'analog' + str(num) + '.wav')
     if os.path.isfile(wav_path):
-        return wavread(wav_path)
+        rate, data = wavread(wav_path)
+        return float(rate), np.array(data, dtype=float)
     htk_path = path.join(blockpath, 'Analog', 'ANIN' + str(num) + '.htk')
     if os.path.isfile(htk_path):
         return readHTK(htk_path, scale_s_rate=True)
     raise Exception('no analog path found for ' + str(num))
+
 
 def get_subject(blockname):
     return blockname[:blockname.find('_')]
@@ -70,7 +72,6 @@ def gen_htk_num(i):
 def add_cortical_surface(nwbfile, pial_files):
 
     names = []
-    surfaces = []
     cortical_surface_object = CorticalSurfaces()
     for pial_file in pial_files:
         matin = loadmat(pial_file)

@@ -8,7 +8,6 @@ import numpy as np
 import pandas as pd
 import scipy.io as sio
 from h5py import File
-import pynwb
 from pynwb import NWBFile, TimeSeries, get_manager, NWBHDF5IO
 from pynwb.ecephys import ElectricalSeries
 from pynwb.form.backends.hdf5 import H5DataIO
@@ -22,10 +21,11 @@ from .HTK import readHTK
 from ..utils import remove_duplicates
 
 from ..extensions.time_frequency import HilbertSeries
+from nwbext_ecog.ecog_manual import CorticalSurfaces
 
-ecog_ext = pynwb.extensions['ecog']
-Surface = ecog_ext.Surface
-CorticalSurfaces = ecog_ext.CorticalSurfaces
+#ecog_ext = pynwb.extensions['ecog']
+#Surface = ecog_ext.Surface
+#CorticalSurfaces = ecog_ext.CorticalSurfaces
 
 
 # get_manager must come after dynamic imports

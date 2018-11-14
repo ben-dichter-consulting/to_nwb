@@ -25,6 +25,8 @@ from ..utils import remove_duplicates
 from ..extensions.time_frequency import HilbertSeries
 from nwbext_ecog.ecog_manual import CorticalSurfaces
 
+from .transcripts import parse, make_df
+
 #ecog_ext = pynwb.extensions['ecog']
 #Surface = ecog_ext.Surface
 #CorticalSurfaces = ecog_ext.CorticalSurfaces
@@ -115,7 +117,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
               session_description=None, identifier=None, anin4=False,
               ecog_format='htk', cortical_mesh=False, include_pitch=False,
               speakers=True, mic=True, mini=False, hilb=False, verbose=False,
-              imaging_path=None, **kwargs):
+              imaging_path=None, parse_transcript=False, **kwargs):
     """
 
     Parameters
@@ -362,6 +364,19 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
         pass
     else:
         raise ValueError('bad value for cortical_mesh.')
+
+    if parse_transcript:
+        parseout = parse(blockpath, blockname)
+        df = make_df(parseout, blockname, subject, align_pos=1)
+        nwbfile.add_trial_column(
+            'cv_transition', 'time from start to CV transition in seconds')
+        nwbfile.add_trial_column(
+            'speak', 'if True, subject is speaking. If False, subject is listening')
+        for _, row in df.iterrows():
+            nwbfile.add_trial(
+                data={'start': row['start'], 'end': row['stop'],
+                      'cv_transition': row['align'] - row['start'],
+                      'speak': row['mode'] == 'speak'})
 
     if include_pitch:
         pass  # add pitch here

@@ -372,11 +372,12 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
             'cv_transition', 'time from start to CV transition in seconds')
         nwbfile.add_trial_column(
             'speak', 'if True, subject is speaking. If False, subject is listening')
+        nwbfile.add_trial_column('condition', 'syllable spoken')
         for _, row in df.iterrows():
             nwbfile.add_trial(
                 start_time=row['start'], stop_time=row['stop'],
                 cv_transition=row['align'] - row['start'],
-                speak=row['mode'] == 'speak')
+                speak=row['mode'] == 'speak', condition=row['label'])
 
     if include_pitch:
         pass  # add pitch here

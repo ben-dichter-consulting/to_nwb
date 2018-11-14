@@ -233,14 +233,18 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
                       institution='University of California, San Francisco',
                       lab='Chang Lab', **kwargs)
 
+    elec_grp_df['bad'] = np.zeros((len(elec_grp_df), ), dtype=bool)
     # I think bad channels is 1-indexed but I'm not sure
     if path.isfile(bad_channels_file) and os.stat(bad_channels_file).st_size:
         dat = pd.read_csv(bad_channels_file, header=None, delimiter='  ')
-        bad_channel_inds = dat.values.ravel() - 1
+        bad_elecs_inds = dat.values.ravel() - 1
+        elec_grp_df['bad'][bad_elecs_inds] = True
 
     elec_counter = 0
     devices = remove_duplicates(elec_grp_device)
     devices = [x for x in devices if x not in ('NaN', 'Right', 'EKG')]
+
+    nwbfile.add_electrode_column('bad', 'electrode identified as too noisy')
     for device_name in devices:
         device_data = elec_grp_df[elec_grp_df['device'] == device_name]
         # Create devices
@@ -257,7 +261,8 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
         for idx, elec_data in device_data.iterrows():
             nwbfile.add_electrode(
                 id=idx, x=float(coord[idx, 0]), y=float(coord[idx, 1]), z=float(coord[idx, 2]),
-                imp=np.nan, location=elec_data['loc'], filtering='none', group=electrode_group)
+                imp=np.nan, location=elec_data['loc'], filtering='none', group=electrode_group,
+                bad=elec_data['bad'])
             elec_counter += 1
 
     all_elecs = nwbfile.create_electrode_table_region(

@@ -238,7 +238,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     if path.isfile(bad_channels_file) and os.stat(bad_channels_file).st_size:
         dat = pd.read_csv(bad_channels_file, header=None, delimiter='  ')
         bad_elecs_inds = dat.values.ravel() - 1
-        elec_grp_df['bad'][bad_elecs_inds] = True
+        elec_grp_df.loc[bad_elecs_inds, 'bad'] = True
 
     elec_counter = 0
     devices = remove_duplicates(elec_grp_device)

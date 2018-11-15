@@ -4,28 +4,26 @@ import os
 from datetime import datetime
 from os import path
 
-from scipy.io.wavfile import read as wavread
-
 import numpy as np
 import pandas as pd
 import scipy.io as sio
 from h5py import File
+from nwbext_ecog.ecog_manual import CorticalSurfaces, ECoGSubject
 from pynwb import NWBFile, TimeSeries, get_manager, NWBHDF5IO
 from pynwb.ecephys import ElectricalSeries, LFP
 from pynwb.form.backends.hdf5 import H5DataIO
-from pynwb.misc import IntervalSeries
+from pynwb.image import RGBImage, RGBAImage, GrayscaleImage
+from pynwb.base import Images
+from pytz import timezone
 from scipy.io import loadmat
+from scipy.io.wavfile import read as wavread
+from scipy.misc import imread
 from tqdm import tqdm
 
-from pytz import timezone
-
 from .HTK import readHTK
-from ..utils import remove_duplicates
-
-from ..extensions.time_frequency import HilbertSeries
-from nwbext_ecog.ecog_manual import CorticalSurfaces, ECoGSubject
-
 from .transcripts import parse, make_df
+from ..extensions.time_frequency import HilbertSeries
+from ..utils import remove_duplicates
 
 #ecog_ext = pynwb.extensions['ecog']
 #Surface = ecog_ext.Surface
@@ -117,7 +115,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
               ecog_format='htk', external_subject=True, include_pitch=False,
               speakers=True, mic=True, mini=False, hilb=False, verbose=False,
               imaging_path=None, parse_transcript=False, include_cortical_surfaces=True,
-              **kwargs):
+              subject_image_list=None, **kwargs):
     """
 
     Parameters
@@ -154,6 +152,8 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     imaging_path: str (optional)
     parse_transcript: str (optional)
     include_cortical_surfaces: bool (optional)
+    subject_image_list: list (optional)
+        List of paths of images to include
     kwargs: dict
         passed to pynwb.NWBFile
 
@@ -351,6 +351,20 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
 
     if include_cortical_surfaces:
         subject.cortical_surfaces = create_cortical_surfaces(pial_files)
+
+    if subject_image_list is not None:
+        images = Images(name='images')
+        for image_path in subject_image_list:
+            image_name = os.path.split(image_path)[1]
+            image_data = imread(image_path)
+            if len(image.data.shape) == 2:
+                image = GrayscaleImage(data=image_data, name=image_name)
+            elif image_data.shape[2] == 3:
+                image = RGBImage(data=image_data, name=image_name)
+            elif image_data.shape[3] == 4:
+                image = RGBAImage(data=image_data, name=image_name)
+            images.add_image(image)
+        subject.images = images
 
     if external_subject:
         subj_fpath = path.join(out_base_path, subject_id + '.nwbaux')

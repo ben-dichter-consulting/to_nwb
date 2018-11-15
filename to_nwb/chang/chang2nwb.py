@@ -352,7 +352,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
         hilb_mod = nwbfile.create_processing_module(name='hilbert', description='na')
         hilb_mod.add_container(hs)
 
-    subject = ECoGSubject(id=subject_id)
+    subject = ECoGSubject(subject_id=subject_id)
 
     if include_cortical_surfaces:
         subject.cortical_surfaces = create_cortical_surfaces(pial_files)

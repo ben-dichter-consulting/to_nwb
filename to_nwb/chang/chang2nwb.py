@@ -114,7 +114,7 @@ def readhtks(htkpath, elecs=None, use_tqdm=True):
 
 def chang2nwb(blockpath, outpath=None, session_start_time=None,
               session_description=None, identifier=None, anin4=False,
-              ecog_format='htk', subject_location=False, include_pitch=False,
+              ecog_format='htk', external_subject=True, include_pitch=False,
               speakers=True, mic=True, mini=False, hilb=False, verbose=False,
               imaging_path=None, parse_transcript=False, include_cortical_surfaces=True,
               **kwargs):
@@ -137,11 +137,10 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
         supplied, that is used as the name of the timeseries.
     ecog_format: str
         ({'htk'}, 'mat')
-    subject_location: str | bool (optional)
-        False: (Default) cortical mesh is not saved
-        'internal': cortical mesh is saved normally
-        'external': cortical mesh is saved in an external file and a link is
+    external_subject: bool (optional)
+        True: (default) cortical mesh is saved in an external file and a link is
             provided to that file. This is useful if you have multiple sessions for a single subject.
+        False: cortical mesh is saved normally
     include_pitch: bool (optional)
         add pitch data. Default: False
     speakers: bool (optional)
@@ -331,13 +330,9 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     # Add bad time segments
     if os.path.exists(bad_time_file):
         bad_time = sio.loadmat(bad_time_file)['badTimeSegments']
-        ts_name = 'badTimeSegments'
-        ts_desc = 'bad time segments'  # this should be something more descriptive
-        bad_timepoints_ts = IntervalSeries(ts_name, description=ts_desc)
-        [bad_timepoints_ts.add_interval(start, stop) for start, stop in bad_time]
-
-        if len(bad_time) > 0:
-            nwbfile.add_acquisition(bad_timepoints_ts)
+        for start_time, stop_time in bad_time:
+            nwbfile.add_invalid_time_interval(start_time=start_time, stop_time=stop_time,
+                                              tags=('ECoG artifact',), timeseries=lfp_ts)
 
     if hilb:
         data, rate = readhtks(hilbdir)
@@ -357,7 +352,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     if include_cortical_surfaces:
         subject.cortical_surfaces = create_cortical_surfaces(pial_files)
 
-    if subject_location == 'external':
+    if external_subject:
         subj_fpath = path.join(out_base_path, subject_id + '.nwbaux')
         if not os.path.isfile(subj_fpath):
             subj_nwbfile = NWBFile(
@@ -392,7 +387,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     with NWBHDF5IO(outpath, manager=manager, mode='w') as io:
         io.write(nwbfile)
 
-    if subject_location == 'external':
+    if external_subject:
         subj_read_io.close()
 
     # read check

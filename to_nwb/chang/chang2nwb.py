@@ -328,10 +328,10 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
                                            description="aux analog recording"))
 
     # Add bad time segments
-    if os.path.exists(bad_time_file):
+    if os.path.exists(bad_time_file) and os.stat(bad_time_file).st_size:
         bad_time = sio.loadmat(bad_time_file)['badTimeSegments']
-        for start_time, stop_time in bad_time:
-            nwbfile.add_invalid_time_interval(start_time=start_time, stop_time=stop_time,
+        for row in bad_time:
+            nwbfile.add_invalid_time_interval(start_time=row[0], stop_time=row[1],
                                               tags=('ECoG artifact',), timeseries=lfp_ts)
 
     if hilb:

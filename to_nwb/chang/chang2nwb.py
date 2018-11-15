@@ -280,7 +280,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
                                                          location='location',
                                                          device=device)
         for elec_counter in range(256):
-            nwbfile.add_ecectrode(id=elec_counter+1, x=np.nan, y=np.nan, z=np.nan, imp=np.nan,
+            nwbfile.add_electrode(id=elec_counter+1, x=np.nan, y=np.nan, z=np.nan, imp=np.nan,
                                   location=' ', filtering='none', group=electrode_group)
 
     all_elecs = nwbfile.create_electrode_table_region(

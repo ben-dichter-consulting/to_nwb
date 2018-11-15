@@ -115,7 +115,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
               ecog_format='htk', external_subject=True, include_pitch=False,
               speakers=True, mic=True, mini=False, hilb=False, verbose=False,
               imaging_path=None, parse_transcript=False, include_cortical_surfaces=True,
-              subject_image_list=None, **kwargs):
+              include_electrodes=True, subject_image_list=None, **kwargs):
     """
 
     Parameters
@@ -152,6 +152,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     imaging_path: str (optional)
     parse_transcript: str (optional)
     include_cortical_surfaces: bool (optional)
+    include_electrodes: bool (optional)
     subject_image_list: list (optional)
         List of paths of images to include
     kwargs: dict
@@ -192,42 +193,6 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     mesh_path = path.join(subj_imaging_path, 'Meshes')
     pial_files = glob.glob(path.join(mesh_path, '*pial.mat'))
 
-    # Get metadata for all electrodes
-    elecs_metadata = sio.loadmat(elec_metadata_file)
-    elec_grp_xyz_coord = elecs_metadata['elecmatrix']
-    anatomy = elecs_metadata['anatomy']
-    elec_grp_loc = [str(x[3][0]) if len(x[3]) else "" for x in anatomy]
-    elec_grp_type = [str(x[2][0]) for x in anatomy]
-    elec_grp_long_name = [str(x[1][0]) for x in anatomy]
-
-    if 'Electrode' in elec_grp_long_name[0]:
-        elec_grp_device = [x[:x.find('Electrode')] for x in elec_grp_long_name]
-    else:
-        elec_grp_device = [''.join(filter(lambda y: not str.isdigit(y), x))
-                           for x in elec_grp_long_name]
-
-    elec_grp_short_name = [str(x[0][0]) for x in anatomy]
-
-    lfp_elecs = [i for i, label in enumerate(elec_grp_short_name)
-                 if label not in ('RT', 'EKG', 'NaN')]
-
-    ekg_elecs = [i for i, label in enumerate(elec_grp_short_name)
-                 if label == 'EKG']
-
-    anatomy = {'loc': elec_grp_loc, 'type': elec_grp_type,
-               'long_name': elec_grp_long_name, 'short_name': elec_grp_short_name,
-               'device': elec_grp_device}
-    elec_grp_df = pd.DataFrame(anatomy)
-
-    n = len(elec_grp_long_name)
-    if n < len(elec_grp_xyz_coord):
-        coord = elec_grp_xyz_coord[:n]
-    elif n == len(elec_grp_xyz_coord):
-        coord = elec_grp_xyz_coord
-    else:
-        coord = elec_grp_xyz_coord
-        for i in range(n - len(elec_grp_xyz_coord)):
-            coord.append([np.nan, np.nan, np.nan])
 
     # Create the NWB file object
     nwbfile = NWBFile(session_description, identifier,
@@ -235,37 +200,88 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
                       institution='University of California, San Francisco',
                       lab='Chang Lab', **kwargs)
 
-    elec_grp_df['bad'] = np.zeros((len(elec_grp_df), ), dtype=bool)
+    nwbfile.add_electrode_column('bad', 'electrode identified as too noisy')
+
     # I think bad channels is 1-indexed but I'm not sure
     if path.isfile(bad_channels_file) and os.stat(bad_channels_file).st_size:
         dat = pd.read_csv(bad_channels_file, header=None, delimiter='  ', engine='python')
         bad_elecs_inds = dat.values.ravel() - 1
+    else:
+        bad_elecs_inds = []
+
+    if include_electrodes:
+        # Get metadata for all electrodes
+        elecs_metadata = sio.loadmat(elec_metadata_file)
+        elec_grp_xyz_coord = elecs_metadata['elecmatrix']
+        anatomy = elecs_metadata['anatomy']
+        elec_grp_loc = [str(x[3][0]) if len(x[3]) else "" for x in anatomy]
+        elec_grp_type = [str(x[2][0]) for x in anatomy]
+        elec_grp_long_name = [str(x[1][0]) for x in anatomy]
+
+        if 'Electrode' in elec_grp_long_name[0]:
+            elec_grp_device = [x[:x.find('Electrode')] for x in elec_grp_long_name]
+        else:
+            elec_grp_device = [''.join(filter(lambda y: not str.isdigit(y), x))
+                               for x in elec_grp_long_name]
+
+        elec_grp_short_name = [str(x[0][0]) for x in anatomy]
+
+        lfp_elecs = [i for i, label in enumerate(elec_grp_short_name)
+                     if label not in ('RT', 'EKG', 'NaN')]
+
+        ekg_elecs = [i for i, label in enumerate(elec_grp_short_name)
+                     if label == 'EKG']
+
+        anatomy = {'loc': elec_grp_loc, 'type': elec_grp_type,
+                   'long_name': elec_grp_long_name, 'short_name': elec_grp_short_name,
+                   'device': elec_grp_device}
+        elec_grp_df = pd.DataFrame(anatomy)
+
+        n = len(elec_grp_long_name)
+        if n < len(elec_grp_xyz_coord):
+            coord = elec_grp_xyz_coord[:n]
+        elif n == len(elec_grp_xyz_coord):
+            coord = elec_grp_xyz_coord
+        else:
+            coord = elec_grp_xyz_coord
+            for i in range(n - len(elec_grp_xyz_coord)):
+                coord.append([np.nan, np.nan, np.nan])
+
+        elec_grp_df['bad'] = np.zeros((len(elec_grp_df), ), dtype=bool)
         elec_grp_df.loc[bad_elecs_inds, 'bad'] = True
 
-    elec_counter = 0
-    devices = remove_duplicates(elec_grp_device)
-    devices = [x for x in devices if x not in ('NaN', 'Right', 'EKG')]
+        elec_counter = 0
+        devices = remove_duplicates(elec_grp_device)
+        devices = [x for x in devices if x not in ('NaN', 'Right', 'EKG')]
 
-    nwbfile.add_electrode_column('bad', 'electrode identified as too noisy')
-    for device_name in devices:
-        device_data = elec_grp_df[elec_grp_df['device'] == device_name]
-        # Create devices
-        device = nwbfile.create_device(device_name)
+        for device_name in devices:
+            device_data = elec_grp_df[elec_grp_df['device'] == device_name]
+            # Create devices
+            device = nwbfile.create_device(device_name)
 
-        # Create electrode groups
-        electrode_group = nwbfile.create_electrode_group(
-            name=device_name + ' electrodes',
-            description=device_name,
-            location=device_data['type'].iloc[0],
-            device=device
-        )
+            # Create electrode groups
+            electrode_group = nwbfile.create_electrode_group(
+                name=device_name + ' electrodes',
+                description=device_name,
+                location=device_data['type'].iloc[0],
+                device=device
+            )
 
-        for idx, elec_data in device_data.iterrows():
-            nwbfile.add_electrode(
-                id=idx, x=float(coord[idx, 0]), y=float(coord[idx, 1]), z=float(coord[idx, 2]),
-                imp=np.nan, location=elec_data['loc'], filtering='none', group=electrode_group,
-                bad=elec_data['bad'])
-            elec_counter += 1
+            for idx, elec_data in device_data.iterrows():
+                nwbfile.add_electrode(
+                    id=idx, x=float(coord[idx, 0]), y=float(coord[idx, 1]), z=float(coord[idx, 2]),
+                    imp=np.nan, location=elec_data['loc'], filtering='none', group=electrode_group,
+                    bad=elec_data['bad'])
+                elec_counter += 1
+    else:
+        device = nwbfile.create_device('auto_device')
+        electrode_group = nwbfile.create_electrode_group(name='auto_gorup',
+                                                         descrription='auto_group',
+                                                         location='location',
+                                                         device=device)
+        for elec_counter in range(256):
+            nwbfile.add_ecectrode(id=elec_counter+1, x=np.nan, y=np.nan, z=np.nan, imp=np.nan,
+                                  location=' ', filtering='none', group=electrode_group)
 
     all_elecs = nwbfile.create_electrode_table_region(
         list(range(elec_counter)), 'all electrodes on brain')

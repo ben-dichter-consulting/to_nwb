@@ -276,7 +276,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     else:
         device = nwbfile.create_device('auto_device')
         electrode_group = nwbfile.create_electrode_group(name='auto_gorup',
-                                                         descrription='auto_group',
+                                                         description='auto_group',
                                                          location='location',
                                                          device=device)
         for elec_counter in range(256):

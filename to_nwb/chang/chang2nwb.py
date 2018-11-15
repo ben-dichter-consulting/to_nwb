@@ -275,13 +275,14 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
                 elec_counter += 1
     else:
         device = nwbfile.create_device('auto_device')
-        electrode_group = nwbfile.create_electrode_group(name='auto_gorup',
+        electrode_group = nwbfile.create_electrode_group(name='auto_group',
                                                          description='auto_group',
                                                          location='location',
                                                          device=device)
         for elec_counter in range(256):
+            bad = elec_counter in bad_elecs_inds
             nwbfile.add_electrode(id=elec_counter+1, x=np.nan, y=np.nan, z=np.nan, imp=np.nan,
-                                  location=' ', filtering='none', group=electrode_group)
+                                  location=' ', filtering='none', group=electrode_group, bad=bad)
 
     all_elecs = nwbfile.create_electrode_table_region(
         list(range(elec_counter)), 'all electrodes on brain')

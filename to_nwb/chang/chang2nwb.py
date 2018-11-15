@@ -23,7 +23,7 @@ from .HTK import readHTK
 from ..utils import remove_duplicates
 
 from ..extensions.time_frequency import HilbertSeries
-from nwbext_ecog.ecog_manual import CorticalSurfaces
+from nwbext_ecog.ecog_manual import CorticalSurfaces, ECoGSubject
 
 from .transcripts import parse, make_df
 
@@ -52,7 +52,7 @@ def get_analog(blockpath, num=1):
     raise Exception('no analog path found for ' + str(num))
 
 
-def get_subject(blockname):
+def get_subject_id(blockname):
     return blockname[:blockname.find('_')]
 
 
@@ -71,10 +71,10 @@ def gen_htk_num(i):
     return str(i//64+1) + str(np.mod(i, 64)+1)
 
 
-def add_cortical_surfaces(nwbfile, pial_files):
+def create_cortical_surfaces(pial_files):
 
     names = []
-    cortical_surface_object = CorticalSurfaces()
+    cortical_surfaces = CorticalSurfaces()
     for pial_file in pial_files:
         matin = loadmat(pial_file)
         if 'cortex' in matin:
@@ -87,9 +87,8 @@ def add_cortical_surfaces(nwbfile, pial_files):
         vert = matin[x]['vert'][0][0]
         name = pial_file[pial_file.find('Meshes')+7:-4]
         names.append(name)
-        cortical_surface_object.create_surface(faces=tri, vertices=vert, name=name)
-    nwbfile.add_acquisition(cortical_surface_object)
-    return nwbfile
+        cortical_surfaces.create_surface(faces=tri, vertices=vert, name=name)
+    return cortical_surfaces
 
 
 def readhtks(htkpath, elecs=None, use_tqdm=True):
@@ -115,9 +114,10 @@ def readhtks(htkpath, elecs=None, use_tqdm=True):
 
 def chang2nwb(blockpath, outpath=None, session_start_time=None,
               session_description=None, identifier=None, anin4=False,
-              ecog_format='htk', cortical_mesh=False, include_pitch=False,
+              ecog_format='htk', subject_location=False, include_pitch=False,
               speakers=True, mic=True, mini=False, hilb=False, verbose=False,
-              imaging_path=None, parse_transcript=False, **kwargs):
+              imaging_path=None, parse_transcript=False, include_cortical_surfaces=True,
+              **kwargs):
     """
 
     Parameters
@@ -137,7 +137,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
         supplied, that is used as the name of the timeseries.
     ecog_format: str
         ({'htk'}, 'mat')
-    cortical_mesh: str | bool (optional)
+    subject_location: str | bool (optional)
         False: (Default) cortical mesh is not saved
         'internal': cortical mesh is saved normally
         'external': cortical mesh is saved in an external file and a link is
@@ -150,6 +150,11 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
         default: False
     mini: only save data stub
     hilb: bool
+        include Hilbert Transform data. Default: False
+    verbose: bool (optional)
+    imaging_path: str (optional)
+    parse_transcript: str (optional)
+    include_cortical_surfaces: bool (optional)
     kwargs: dict
         passed to pynwb.NWBFile
 
@@ -159,7 +164,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     """
 
     basepath, blockname = os.path.split(blockpath)
-    subject = get_subject(blockname)
+    subject_id = get_subject_id(blockname)
     if identifier is None:
         identifier = blockname
 
@@ -176,7 +181,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     if imaging_path is None:
         subj_imaging_path = path.join(basepath, 'imaging')
     else:
-        subj_imaging_path = os.path.join(imaging_path, subject)
+        subj_imaging_path = os.path.join(imaging_path, subject_id)
 
     # file paths
     bad_time_file = path.join(blockpath, 'Artifacts', 'badTimeSegments.mat')
@@ -187,8 +192,6 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     hilbdir = path.join(blockpath, 'HilbAA_70to150_8band')
     mesh_path = path.join(subj_imaging_path, 'Meshes')
     pial_files = glob.glob(path.join(mesh_path, '*pial.mat'))
-    if cortical_mesh and not len(pial_files):
-        raise Warning('pial files not found')
 
     # Get metadata for all electrodes
     elecs_metadata = sio.loadmat(elec_metadata_file)
@@ -236,7 +239,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     elec_grp_df['bad'] = np.zeros((len(elec_grp_df), ), dtype=bool)
     # I think bad channels is 1-indexed but I'm not sure
     if path.isfile(bad_channels_file) and os.stat(bad_channels_file).st_size:
-        dat = pd.read_csv(bad_channels_file, header=None, delimiter='  ')
+        dat = pd.read_csv(bad_channels_file, header=None, delimiter='  ', engine='python')
         bad_elecs_inds = dat.values.ravel() - 1
         elec_grp_df.loc[bad_elecs_inds, 'bad'] = True
 
@@ -349,30 +352,28 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
         hilb_mod = nwbfile.create_processing_module(name='hilbert', description='na')
         hilb_mod.add_container(hs)
 
-    if cortical_mesh == 'external':
-        anat_fpath = path.join(out_base_path, subject + '_cortical_surface.nwbaux')
-        if not os.path.isfile(anat_fpath):
-            anat_nwbfile = NWBFile(
-                session_description=subject + ' anatomy', identifier=subject + '_cortical_surface',
-                session_start_time=datetime(1900, 1, 1).astimezone(timezone('UTC')))
-            anat_nwbfile = add_cortical_surfaces(anat_nwbfile, pial_files)
-            with NWBHDF5IO(anat_fpath, manager=manager, mode='w') as anat_io:
-                anat_io.write(anat_nwbfile)
-        anat_read_io = NWBHDF5IO(anat_fpath, manager=manager, mode='r')
-        anat_nwbfile = anat_read_io.read()
-        cortical_surfaces = anat_nwbfile.acquisition['cortical_surfaces']
-        nwbfile.add_acquisition(cortical_surfaces)
+    subject = ECoGSubject(id=subject_id)
 
-    elif cortical_mesh == 'internal':
-        nwbfile, surface_names = add_cortical_surfaces(nwbfile, pial_files)
-    elif cortical_mesh is False:
-        pass
-    else:
-        raise ValueError('bad value for cortical_mesh.')
+    if include_cortical_surfaces:
+        subject.cortical_surfaces = create_cortical_surfaces(pial_files)
+
+    if subject_location == 'external':
+        subj_fpath = path.join(out_base_path, subject_id + '.nwbaux')
+        if not os.path.isfile(subj_fpath):
+            subj_nwbfile = NWBFile(
+                session_description=subject_id, identifier=subject_id, subject=subject,
+                session_start_time=datetime(1900, 1, 1).astimezone(timezone('UTC')))
+            with NWBHDF5IO(subj_fpath, manager=manager, mode='w') as subj_io:
+                subj_io.write(subj_nwbfile)
+        subj_read_io = NWBHDF5IO(subj_fpath, manager=manager, mode='r')
+        subj_nwbfile = subj_read_io.read()
+        subject = subj_nwbfile.subject
+
+    nwbfile.subject = subject
 
     if parse_transcript:
         parseout = parse(blockpath, blockname)
-        df = make_df(parseout, blockname, subject, align_pos=1)
+        df = make_df(parseout, 0, subject_id, align_pos=1)
         nwbfile.add_trial_column(
             'cv_transition', 'time from start to CV transition in seconds')
         nwbfile.add_trial_column(
@@ -391,8 +392,8 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     with NWBHDF5IO(outpath, manager=manager, mode='w') as io:
         io.write(nwbfile)
 
-    if cortical_mesh == 'external':
-        anat_read_io.close()
+    if subject_location == 'external':
+        subj_read_io.close()
 
     # read check
     with NWBHDF5IO(outpath, manager=manager, mode='r') as io:

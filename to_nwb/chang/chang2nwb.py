@@ -376,7 +376,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
         for image_path in subject_image_list:
             image_name = os.path.split(image_path)[1]
             image_data = imread(image_path)
-            if len(image.data.shape) == 2:
+            if len(image_data.shape) == 2:
                 image = GrayscaleImage(data=image_data, name=image_name)
             elif image_data.shape[2] == 3:
                 image = RGBImage(data=image_data, name=image_name)

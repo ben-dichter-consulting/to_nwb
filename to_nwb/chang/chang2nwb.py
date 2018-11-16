@@ -110,6 +110,20 @@ def readhtks(htkpath, elecs=None, use_tqdm=True):
     return rate, data
 
 
+def get_bad_elecs(blockpath):
+    bad_channels_file = os.path.join(blockpath, 'Artifacts', 'badChannels.txt')
+
+    # I think bad channels is 1-indexed but I'm not sure
+    if os.path.isfile(bad_channels_file) and os.stat(bad_channels_file).st_size:
+        dat = pd.read_csv(bad_channels_file, header=None, delimiter='  ', engine='python')
+        bad_elecs_inds = dat.values.ravel() - 1
+        bad_elecs_inds = bad_elecs_inds[np.isfinite(bad_elecs_inds)]
+    else:
+        bad_elecs_inds = []
+
+    return bad_elecs_inds
+
+
 def chang2nwb(blockpath, outpath=None, session_start_time=None,
               session_description=None, identifier=None, anin4=False,
               ecog_format='htk', external_subject=True, include_pitch=False,
@@ -187,7 +201,6 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
 
     # file paths
     bad_time_file = path.join(blockpath, 'Artifacts', 'badTimeSegments.mat')
-    bad_channels_file = path.join(blockpath, 'Artifacts', 'badChannels.txt')
     lfp_path = path.join(blockpath, 'RawHTK')
     if not os.path.exists(lfp_path) and raw_htk_path is not None:
         lfp_path = path.join(raw_htk_path, subject_id, blockname, 'RawHTK')
@@ -206,12 +219,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
 
     nwbfile.add_electrode_column('bad', 'electrode identified as too noisy')
 
-    # I think bad channels is 1-indexed but I'm not sure
-    if path.isfile(bad_channels_file) and os.stat(bad_channels_file).st_size:
-        dat = pd.read_csv(bad_channels_file, header=None, delimiter='  ', engine='python')
-        bad_elecs_inds = dat.values.ravel() - 1
-    else:
-        bad_elecs_inds = []
+    bad_elecs_inds = get_bad_elecs(blockpath)
 
     if include_electrodes:
         # Get metadata for all electrodes

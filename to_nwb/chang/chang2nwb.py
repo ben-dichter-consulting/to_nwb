@@ -163,6 +163,8 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
 
     """
 
+    raw_htk_path = '/data_store0/human/HTK_raw'
+
     basepath, blockname = os.path.split(blockpath)
     subject_id = get_subject_id(blockname)
     if identifier is None:
@@ -187,6 +189,8 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     bad_time_file = path.join(blockpath, 'Artifacts', 'badTimeSegments.mat')
     bad_channels_file = path.join(blockpath, 'Artifacts', 'badChannels.txt')
     lfp_path = path.join(blockpath, 'RawHTK')
+    if not os.path.exists(lfp_path) and raw_htk_path is not None:
+        lfp_path = path.join(raw_htk_path, subject_id, blockname, 'RawHTK')
     ecog400_path = path.join(blockpath, 'ecog400', 'ecog.mat')
     elec_metadata_file = path.join(subj_imaging_path, 'elecs', 'TDT_elecs_all.mat')
     hilbdir = path.join(blockpath, 'HilbAA_70to150_8band')

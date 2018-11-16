@@ -474,20 +474,20 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
                 cv_transition=row['align'] - row['start'],
                 speak=row['mode'] == 'speak', condition=row['label'])
 
+    # behavior
     if include_intensity or include_pitch:
         behav_module = nwbfile.create_processing_module('behavior', 'processing about behavior')
     if include_pitch:
         fs, data = load_pitch(blockpath)
-        pitch_ts = TimeSeries(data=data, rate=fs, unit='Hz',
+        pitch_ts = TimeSeries(data=data, rate=fs, unit='Hz', name='pitch',
                               description='Pitch as extracted from Praat. NaNs mark unvoiced regions.')
         behav_module.add_container(BehavioralTimeSeries(name='pitch', time_series=pitch_ts))
 
     if include_intensity:
         fs, data = load_pitch(blockpath)
-        intensity_ts = TimeSeries(data=data, rate=fs, unit='dB',
+        intensity_ts = TimeSeries(data=data, rate=fs, unit='dB', name='intensity',
                                   description='Intensity of speech in dB extracted from Praat.')
         behav_module.add_container(BehavioralTimeSeries(name='intensity', time_series=intensity_ts))
-
 
     # Export the NWB file
     with NWBHDF5IO(outpath, manager=manager, mode='w') as io:

@@ -24,6 +24,7 @@ from .HTK import readHTK
 from .transcripts import parse, make_df
 from ..extensions.time_frequency import HilbertSeries
 from ..utils import remove_duplicates
+from ..tdt import load_wavs, load_anin
 
 #ecog_ext = pynwb.extensions['ecog']
 #Surface = ecog_ext.Surface
@@ -33,6 +34,8 @@ from ..utils import remove_duplicates
 # get_manager must come after dynamic imports
 manager = get_manager()
 
+raw_htk_path = '/data_store0/human/HTK_raw'
+
 
 """
 Convert ECoG to NWB
@@ -40,6 +43,21 @@ Convert ECoG to NWB
 
 
 def get_analog(blockpath, num=1):
+    """
+    Load analog data. Try:
+    1) analog[num].wav
+    2) ANIN[num].htk
+    3) Extracting from raw.mat
+    Parameters
+    ----------
+    blockpath: str
+    num: int
+
+    Returns
+    -------
+    fs, data
+
+    """
     wav_path = path.join(blockpath, 'Analog', 'analog' + str(num) + '.wav')
     if os.path.isfile(wav_path):
         rate, data = wavread(wav_path)
@@ -47,6 +65,11 @@ def get_analog(blockpath, num=1):
     htk_path = path.join(blockpath, 'Analog', 'ANIN' + str(num) + '.htk')
     if os.path.isfile(htk_path):
         return readHTK(htk_path, scale_s_rate=True)
+    blockname = os.path.split(blockpath)[1]
+    subject_id = get_subject_id(blockname)
+    raw_fpath = os.path.join(raw_htk_path, subject_id, blockname, 'raw.mat')
+    if os.path.isfile(raw_fpath):
+        return load_anin(raw_fpath, num)
     raise Exception('no analog path found for ' + str(num))
 
 
@@ -177,8 +200,6 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
 
     """
 
-    raw_htk_path = '/data_store0/human/HTK_raw'
-
     basepath, blockname = os.path.split(blockpath)
     subject_id = get_subject_id(blockname)
     if identifier is None:
@@ -209,7 +230,6 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     hilbdir = path.join(blockpath, 'HilbAA_70to150_8band')
     mesh_path = path.join(subj_imaging_path, 'Meshes')
     pial_files = glob.glob(path.join(mesh_path, '*pial.mat'))
-
 
     # Create the NWB file object
     nwbfile = NWBFile(session_description, identifier,
@@ -323,6 +343,11 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
 
             if ekg_elecs:
                 ekg_data = f['ecogDS']['data'][:, ekg_elecs]
+
+    elif ecog_format == 'raw':
+        raw_fpath = os.path.join(raw_htk_path, subject_id, blockname, 'raw.mat')
+        rate, data = load_wavs(raw_fpath)
+
     else:
         raise ValueError('unrecognized argument: ecog_format')
 

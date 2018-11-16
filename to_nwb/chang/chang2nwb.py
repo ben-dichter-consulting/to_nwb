@@ -36,6 +36,7 @@ from ..tdt import load_wavs, load_anin
 manager = get_manager()
 
 raw_htk_path = '/data_store0/human/HTK_raw'
+IMAGING_PATH = '/data_store2/imaging/subjects'
 
 
 """
@@ -237,6 +238,8 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
         session_start_time = datetime(1900, 1, 1).astimezone(timezone('UTC'))
 
     if imaging_path is None:
+        subj_imaging_path = path.join(IMAGING_PATH, subject_id)
+    elif imaging_path == 'local':
         subj_imaging_path = path.join(basepath, 'imaging')
     else:
         subj_imaging_path = os.path.join(imaging_path, subject_id)

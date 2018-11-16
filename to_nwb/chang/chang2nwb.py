@@ -11,6 +11,7 @@ from h5py import File
 from nwbext_ecog.ecog_manual import CorticalSurfaces, ECoGSubject
 from pynwb import NWBFile, TimeSeries, get_manager, NWBHDF5IO
 from pynwb.ecephys import ElectricalSeries, LFP
+from pynwb.behavior import BehavioralTimeSeries
 from pynwb.form.backends.hdf5 import H5DataIO
 from pynwb.image import RGBImage, RGBAImage, GrayscaleImage
 from pynwb.base import Images
@@ -40,6 +41,24 @@ raw_htk_path = '/data_store0/human/HTK_raw'
 """
 Convert ECoG to NWB
 """
+
+
+def load_pitch(blockpath):
+    blockname = os.path.split(blockpath)[1]
+    pitch_path = os.path.join(blockpath, 'pitch_' + blockname + '.mat')
+    matin = loadmat(pitch_path)
+    data = matin['pitch'].ravel()
+    fs = 1 / matin['dt'][0, 0]
+    return fs, data
+
+
+def load_intensity(blockpath):
+    blockname = os.path.split(blockpath)[1]
+    pitch_path = os.path.join(blockpath, 'intensity_' + blockname + '.mat')
+    matin = loadmat(pitch_path)
+    data = matin['intensity'].ravel()
+    fs = 1 / matin['dt'][0, 0]
+    return fs, data
 
 
 def get_analog(blockpath, num=1):
@@ -149,7 +168,7 @@ def get_bad_elecs(blockpath):
 
 def chang2nwb(blockpath, outpath=None, session_start_time=None,
               session_description=None, identifier=None, anin4=False,
-              ecog_format='htk', external_subject=True, include_pitch=False,
+              ecog_format='htk', external_subject=True, include_pitch=False, include_intensity=False,
               speakers=True, mic=True, mini=False, hilb=False, verbose=False,
               imaging_path=None, parse_transcript=False, include_cortical_surfaces=True,
               include_electrodes=True, subject_image_list=None, **kwargs):
@@ -171,18 +190,20 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
         things like button presses, and is usually unused. If a string is
         supplied, that is used as the name of the timeseries.
     ecog_format: str
-        ({'htk'}, 'mat')
+        ({'htk'}, 'mat', 'raw')
     external_subject: bool (optional)
         True: (default) cortical mesh is saved in an external file and a link is
             provided to that file. This is useful if you have multiple sessions for a single subject.
         False: cortical mesh is saved normally
     include_pitch: bool (optional)
         add pitch data. Default: False
+    include_intensity: bool (optional)
+        add intensity data. Default: False
     speakers: bool (optional)
         Default: False
     mic: bool (optional)
         default: False
-    mini: only save data stub
+    mini: only save data stub. Used for testing
     hilb: bool
         include Hilbert Transform data. Default: False
     verbose: bool (optional)
@@ -450,8 +471,20 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
                 cv_transition=row['align'] - row['start'],
                 speak=row['mode'] == 'speak', condition=row['label'])
 
+    if include_intensity or include_pitch:
+        behav_module = nwbfile.create_processing_module('behavior', 'processing about behavior')
     if include_pitch:
-        pass  # add pitch here
+        fs, data = load_pitch(blockpath)
+        pitch_ts = TimeSeries(data=data, rate=fs, unit='Hz',
+                              description='Pitch as extracted from Praat. NaNs mark unvoiced regions.')
+        behav_module.add_container(BehavioralTimeSeries(name='pitch', time_series=pitch_ts))
+
+    if include_intensity:
+        fs, data = load_pitch(blockpath)
+        intensity_ts = TimeSeries(data=data, rate=fs, unit='dB',
+                                  description='Intensity of speech in dB extracted from Praat.')
+        behav_module.add_container(BehavioralTimeSeries(name='intensity', time_series=intensity_ts))
+
 
     # Export the NWB file
     with NWBHDF5IO(outpath, manager=manager, mode='w') as io:

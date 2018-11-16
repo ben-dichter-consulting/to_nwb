@@ -30,7 +30,7 @@ def load_wavs_h5py(raw_path):
         wav_stream_names = sorted([x for x in streams.keys() if x[:3] == 'Wav'])
         for stream in wav_stream_names:
             out.append(streams[stream]['data'][:])
-        fs = streams[stream]['fs']
+        fs = streams[stream]['fs'][:][0, 0]
     data = np.hstack(out)
     return fs, data
 

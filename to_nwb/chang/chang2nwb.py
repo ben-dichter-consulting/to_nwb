@@ -44,6 +44,24 @@ Convert ECoG to NWB
 """
 
 
+def add_images_to_subject(subject, subject_image_list):
+    images = Images(name='images')
+    for image_path in subject_image_list:
+        image_name = os.path.split(image_path)[1]
+        image_data = imread(image_path)
+
+        if len(image_data.shape) == 2:
+            image = GrayscaleImage(data=image_data, name=image_name)
+        elif image_data.shape[2] == 3:
+            image = RGBImage(data=image_data, name=image_name)
+        elif image_data.shape[3] == 4:
+            image = RGBAImage(data=image_data, name=image_name)
+
+        images.add_image(image)
+    subject.images = images
+    return subject
+
+
 def load_pitch(blockpath):
     blockname = os.path.split(blockpath)[1]
     pitch_path = os.path.join(blockpath, 'pitch_' + blockname + '.mat')
@@ -97,7 +115,7 @@ def get_subject_id(blockname):
     return blockname[:blockname.find('_')]
 
 
-def gen_htk_num(i):
+def gen_htk_num(i, n=65):
     """Input 0-indexed channel number, output htk filename.
     Parameters
     ----------
@@ -109,7 +127,7 @@ def gen_htk_num(i):
     str
 
     """
-    return str(i//64+1) + str(np.mod(i, 64)+1)
+    return str(i//n+1) + str(np.mod(i, n)+1)
 
 
 def create_cortical_surfaces(pial_files):
@@ -239,7 +257,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
               ecog_format='htk', external_subject=True, include_pitch=False, include_intensity=False,
               speakers=True, mic=True, mini=False, hilb=False, verbose=False,
               imaging_path=None, parse_transcript=False, include_cortical_surfaces=True,
-              include_electrodes=True, subject_image_list=None, **kwargs):
+              include_electrodes=True, include_ekg=True, subject_image_list=None, **kwargs):
     """
 
     Parameters
@@ -279,6 +297,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     parse_transcript: str (optional)
     include_cortical_surfaces: bool (optional)
     include_electrodes: bool (optional)
+    include_ekg: bool (optional)
     subject_image_list: list (optional)
         List of paths of images to include
     kwargs: dict
@@ -352,32 +371,19 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     if ecog_format == 'htk':
         if verbose:
             print('reading htk acquisition...', flush=True)
-        rate, data = readhtks(ecog_path, ecog_elecs)
+        ecog_rate, data = readhtks(ecog_path, ecog_elecs)
         data = data.squeeze()
         if verbose:
             print('done', flush=True)
-        if ekg_elecs:
-            ekg_data = readhtks(ecog_path, ekg_elecs)[1]
-            ekg_ts = TimeSeries('EKG', H5DataIO(ekg_data, compression='gzip'),
-                                rate=rate, unit='V', conversion=.001,
-                                description='electrotorticography')
-            nwbfile.add_acquisition(ekg_ts)
 
     elif ecog_format == 'mat':
         with File(ecog400_path, 'r') as f:
             data = f['ecogDS']['data'][:, ecog_elecs]
-            rate = f['ecogDS']['sampFreq'][:].ravel()[0]
-
-            if ekg_elecs:
-                ekg_data = f['ecogDS']['data'][:, ekg_elecs]
-                ekg_ts = TimeSeries('EKG', H5DataIO(ekg_data, compression='gzip'),
-                                    rate=rate, unit='V', conversion=.001,
-                                    description='electrotorticography')
-                nwbfile.add_acquisition(ekg_ts)
+            ecog_rate = f['ecogDS']['sampFreq'][:].ravel()[0]
 
     elif ecog_format == 'raw':
         raw_fpath = os.path.join(raw_htk_path, subject_id, blockname, 'raw.mat')
-        rate, data = load_wavs(raw_fpath)
+        ecog_rate, data = load_wavs(raw_fpath)
 
     else:
         raise ValueError('unrecognized argument: ecog_format')
@@ -388,9 +394,26 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
         data = data[:2000]
 
     ecog_ts = ElectricalSeries(name='ECoG', data=H5DataIO(data, compression='gzip'),
-                               electrodes=ecog_elecs_region, rate=rate, description=ts_desc,
+                               electrodes=ecog_elecs_region, rate=ecog_rate, description=ts_desc,
                                conversion=0.001)
     nwbfile.add_acquisition(ecog_ts)
+
+    if ecog_format in ('htk', 'mat', 'raw'):
+        ecog_found = ecog_format
+
+    if include_ekg:
+        if ecog_found == 'htk':
+            ekg_data = readhtks(ecog_path, ekg_elecs)[1]
+        elif ecog_found == 'mat':
+            with File(ecog400_path, 'r') as f:
+                ekg_data = f['ecogDS']['data'][:, ekg_elecs]
+        elif ecog_found == 'raw':
+            ekg_data = load_wavs(raw_fpath, ekg_elecs)[1]
+
+        ekg_ts = TimeSeries('EKG', H5DataIO(ekg_data, compression='gzip'),
+                            rate=ecog_rate, unit='V', conversion=.001,
+                            description='electrotorticography')
+        nwbfile.add_acquisition(ekg_ts)
 
     if mic:
         # Add microphone recording from room
@@ -428,7 +451,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
         #   imaginary_data,
         #   phase_data
         hs = HilbertSeries(name='hilbert_series', filter_centers=[1., 2., 3.],
-                           filter_sigmas=[1., 2., 3.], data=data, rate=rate, electrodes=all_elecs)
+                           filter_sigmas=[1., 2., 3.], data=data, rate=rate, electrodes=ecog_elecs)
 
         hilb_mod = nwbfile.create_processing_module(name='hilbert', description='na')
         hilb_mod.add_container(hs)
@@ -439,18 +462,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
         subject.cortical_surfaces = create_cortical_surfaces(pial_files)
 
     if subject_image_list is not None:
-        images = Images(name='images')
-        for image_path in subject_image_list:
-            image_name = os.path.split(image_path)[1]
-            image_data = imread(image_path)
-            if len(image_data.shape) == 2:
-                image = GrayscaleImage(data=image_data, name=image_name)
-            elif image_data.shape[2] == 3:
-                image = RGBImage(data=image_data, name=image_name)
-            elif image_data.shape[3] == 4:
-                image = RGBAImage(data=image_data, name=image_name)
-            images.add_image(image)
-        subject.images = images
+        subject = add_images_to_subject(subject, subject_image_list)
 
     if external_subject:
         subj_fpath = path.join(out_base_path, subject_id + '.nwbaux')

@@ -478,16 +478,22 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     if include_intensity or include_pitch:
         behav_module = nwbfile.create_processing_module('behavior', 'processing about behavior')
     if include_pitch:
-        fs, data = load_pitch(blockpath)
-        pitch_ts = TimeSeries(data=data, rate=fs, unit='Hz', name='pitch',
-                              description='Pitch as extracted from Praat. NaNs mark unvoiced regions.')
-        behav_module.add_container(BehavioralTimeSeries(name='pitch', time_series=pitch_ts))
+        if os.path.isfile(os.path.join(blockpath, 'pitch_' + blockname + '.mat')):
+            fs, data = load_pitch(blockpath)
+            pitch_ts = TimeSeries(data=data, rate=fs, unit='Hz', name='pitch',
+                                  description='Pitch as extracted from Praat. NaNs mark unvoiced regions.')
+            behav_module.add_container(BehavioralTimeSeries(name='pitch', time_series=pitch_ts))
+        else:
+            print('No pitch file for ' + blockname)
 
     if include_intensity:
-        fs, data = load_pitch(blockpath)
-        intensity_ts = TimeSeries(data=data, rate=fs, unit='dB', name='intensity',
-                                  description='Intensity of speech in dB extracted from Praat.')
-        behav_module.add_container(BehavioralTimeSeries(name='intensity', time_series=intensity_ts))
+        if os.path.isfile(os.path.join(blockpath, 'intensity_' + blockname + '.mat')):
+            fs, data = load_pitch(blockpath)
+            intensity_ts = TimeSeries(data=data, rate=fs, unit='dB', name='intensity',
+                                      description='Intensity of speech in dB extracted from Praat.')
+            behav_module.add_container(BehavioralTimeSeries(name='intensity', time_series=intensity_ts))
+        else:
+            print('No intensity file for ' + blockname)
 
     # Export the NWB file
     with NWBHDF5IO(outpath, manager=manager, mode='w') as io:

@@ -54,9 +54,12 @@ def add_ekg(nwbfile, ecog_path, ekg_elecs):
     elif os.path.split(ecog_path)[1] == 'raw.mat':
         rate, ekg_data = load_wavs(ecog_path, ekg_elecs)
 
-    ekg_ts = TimeSeries('EKG', H5DataIO(ekg_data, compression='gzip'),
-                        rate=rate, unit='V', conversion=.001,
-                        description='electrotorticography')
+    ekg_elecs_region = nwbfile.create_electrode_table_region(
+        ekg_elecs, 'ekg electrode(s)')
+
+    ekg_ts = ElectricalSeries('EKG', H5DataIO(ekg_data, compression='gzip'),
+                              rate=rate, conversion=.001, electrodes=ekg_elecs_region,
+                              description='electrotorticography')
     nwbfile.add_acquisition(ekg_ts)
 
     return nwbfile

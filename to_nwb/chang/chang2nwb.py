@@ -10,7 +10,7 @@ import scipy.io as sio
 from h5py import File
 from nwbext_ecog.ecog_manual import CorticalSurfaces, ECoGSubject
 from pynwb import NWBFile, TimeSeries, get_manager, NWBHDF5IO
-from pynwb.ecephys import ElectricalSeries, LFP
+from pynwb.ecephys import ElectricalSeries
 from pynwb.behavior import BehavioralTimeSeries
 from pynwb.form.backends.hdf5 import H5DataIO
 from pynwb.image import RGBImage, RGBAImage, GrayscaleImage
@@ -167,6 +167,73 @@ def get_bad_elecs(blockpath):
     return bad_elecs_inds
 
 
+def add_electrodes(nwbfile, elec_metadata_file, bad_elecs_inds):
+    # Get metadata for all electrodes
+    elecs_metadata = sio.loadmat(elec_metadata_file)
+    elec_grp_xyz_coord = elecs_metadata['elecmatrix']
+    anatomy = elecs_metadata['anatomy']
+    elec_grp_loc = [str(x[3][0]) if len(x[3]) else "" for x in anatomy]
+    elec_grp_type = [str(x[2][0]) for x in anatomy]
+    elec_grp_long_name = [str(x[1][0]) for x in anatomy]
+
+    if 'Electrode' in elec_grp_long_name[0]:
+        elec_grp_device = [x[:x.find('Electrode')] for x in elec_grp_long_name]
+    else:
+        elec_grp_device = [''.join(filter(lambda y: not str.isdigit(y), x))
+                           for x in elec_grp_long_name]
+
+    elec_grp_short_name = [str(x[0][0]) for x in anatomy]
+
+    ecog_elecs = [i for i, label in enumerate(elec_grp_short_name)
+                 if label not in ('RT', 'EKG', 'NaN')]
+
+    ekg_elecs = [i for i, label in enumerate(elec_grp_short_name)
+                 if label == 'EKG']
+
+    anatomy = {'loc': elec_grp_loc, 'type': elec_grp_type,
+               'long_name': elec_grp_long_name, 'short_name': elec_grp_short_name,
+               'device': elec_grp_device}
+    elec_grp_df = pd.DataFrame(anatomy)
+
+    n = len(elec_grp_long_name)
+    if n < len(elec_grp_xyz_coord):
+        coord = elec_grp_xyz_coord[:n]
+    elif n == len(elec_grp_xyz_coord):
+        coord = elec_grp_xyz_coord
+    else:
+        coord = elec_grp_xyz_coord
+        for i in range(n - len(elec_grp_xyz_coord)):
+            coord.append([np.nan, np.nan, np.nan])
+
+    elec_grp_df['bad'] = np.zeros((len(elec_grp_df),), dtype=bool)
+    elec_grp_df.loc[bad_elecs_inds, 'bad'] = True
+
+    elec_counter = 0
+    devices = remove_duplicates(elec_grp_device)
+    devices = [x for x in devices if x not in ('NaN', 'Right', 'EKG')]
+
+    for device_name in devices:
+        device_data = elec_grp_df[elec_grp_df['device'] == device_name]
+        # Create devices
+        device = nwbfile.create_device(device_name)
+
+        # Create electrode groups
+        electrode_group = nwbfile.create_electrode_group(
+            name=device_name + ' electrodes',
+            description=device_name,
+            location=device_data['type'].iloc[0],
+            device=device
+        )
+
+        for idx, elec_data in device_data.iterrows():
+            nwbfile.add_electrode(
+                id=idx, x=float(coord[idx, 0]), y=float(coord[idx, 1]), z=float(coord[idx, 2]),
+                imp=np.nan, location=elec_data['loc'], filtering='none', group=electrode_group,
+                bad=elec_data['bad'])
+            elec_counter += 1
+    return nwbfile, ecog_elecs, ekg_elecs
+
+
 def chang2nwb(blockpath, outpath=None, session_start_time=None,
               session_description=None, identifier=None, anin4=False,
               ecog_format='htk', external_subject=True, include_pitch=False, include_intensity=False,
@@ -246,9 +313,9 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
 
     # file paths
     bad_time_file = path.join(blockpath, 'Artifacts', 'badTimeSegments.mat')
-    lfp_path = path.join(blockpath, 'RawHTK')
-    if not os.path.exists(lfp_path) and raw_htk_path is not None:
-        lfp_path = path.join(raw_htk_path, subject_id, blockname, 'RawHTK')
+    ecog_path = path.join(blockpath, 'RawHTK')
+    if not os.path.exists(ecog_path) and raw_htk_path is not None:
+        ecog_path = path.join(raw_htk_path, subject_id, blockname, 'RawHTK')
     ecog400_path = path.join(blockpath, 'ecog400', 'ecog.mat')
     elec_metadata_file = path.join(subj_imaging_path, 'elecs', 'TDT_elecs_all.mat')
     hilbdir = path.join(blockpath, 'HilbAA_70to150_8band')
@@ -266,69 +333,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     bad_elecs_inds = get_bad_elecs(blockpath)
 
     if include_electrodes:
-        # Get metadata for all electrodes
-        elecs_metadata = sio.loadmat(elec_metadata_file)
-        elec_grp_xyz_coord = elecs_metadata['elecmatrix']
-        anatomy = elecs_metadata['anatomy']
-        elec_grp_loc = [str(x[3][0]) if len(x[3]) else "" for x in anatomy]
-        elec_grp_type = [str(x[2][0]) for x in anatomy]
-        elec_grp_long_name = [str(x[1][0]) for x in anatomy]
-
-        if 'Electrode' in elec_grp_long_name[0]:
-            elec_grp_device = [x[:x.find('Electrode')] for x in elec_grp_long_name]
-        else:
-            elec_grp_device = [''.join(filter(lambda y: not str.isdigit(y), x))
-                               for x in elec_grp_long_name]
-
-        elec_grp_short_name = [str(x[0][0]) for x in anatomy]
-
-        lfp_elecs = [i for i, label in enumerate(elec_grp_short_name)
-                     if label not in ('RT', 'EKG', 'NaN')]
-
-        ekg_elecs = [i for i, label in enumerate(elec_grp_short_name)
-                     if label == 'EKG']
-
-        anatomy = {'loc': elec_grp_loc, 'type': elec_grp_type,
-                   'long_name': elec_grp_long_name, 'short_name': elec_grp_short_name,
-                   'device': elec_grp_device}
-        elec_grp_df = pd.DataFrame(anatomy)
-
-        n = len(elec_grp_long_name)
-        if n < len(elec_grp_xyz_coord):
-            coord = elec_grp_xyz_coord[:n]
-        elif n == len(elec_grp_xyz_coord):
-            coord = elec_grp_xyz_coord
-        else:
-            coord = elec_grp_xyz_coord
-            for i in range(n - len(elec_grp_xyz_coord)):
-                coord.append([np.nan, np.nan, np.nan])
-
-        elec_grp_df['bad'] = np.zeros((len(elec_grp_df), ), dtype=bool)
-        elec_grp_df.loc[bad_elecs_inds, 'bad'] = True
-
-        elec_counter = 0
-        devices = remove_duplicates(elec_grp_device)
-        devices = [x for x in devices if x not in ('NaN', 'Right', 'EKG')]
-
-        for device_name in devices:
-            device_data = elec_grp_df[elec_grp_df['device'] == device_name]
-            # Create devices
-            device = nwbfile.create_device(device_name)
-
-            # Create electrode groups
-            electrode_group = nwbfile.create_electrode_group(
-                name=device_name + ' electrodes',
-                description=device_name,
-                location=device_data['type'].iloc[0],
-                device=device
-            )
-
-            for idx, elec_data in device_data.iterrows():
-                nwbfile.add_electrode(
-                    id=idx, x=float(coord[idx, 0]), y=float(coord[idx, 1]), z=float(coord[idx, 2]),
-                    imp=np.nan, location=elec_data['loc'], filtering='none', group=electrode_group,
-                    bad=elec_data['bad'])
-                elec_counter += 1
+        nwbfile, ecog_elecs, ekg_elecs = add_electrodes(nwbfile, elec_metadata_file, bad_elecs_inds)
     else:
         device = nwbfile.create_device('auto_device')
         electrode_group = nwbfile.create_electrode_group(name='auto_group',
@@ -339,22 +344,20 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
             bad = elec_counter in bad_elecs_inds
             nwbfile.add_electrode(id=elec_counter+1, x=np.nan, y=np.nan, z=np.nan, imp=np.nan,
                                   location=' ', filtering='none', group=electrode_group, bad=bad)
-        lfp_elecs = list(range(256))
+        ecog_elecs = list(range(256))
         ekg_elecs = []
-
-    all_elecs = nwbfile.create_electrode_table_region(
-        list(range(elec_counter)), 'all electrodes on brain')
+    ecog_elecs_region = nwbfile.create_electrode_table_region(ecog_elecs, 'all electrodes on brain')
 
     # Read electrophysiology data from HTK files and add them to NWB file
     if ecog_format == 'htk':
         if verbose:
             print('reading htk acquisition...', flush=True)
-        rate, data = readhtks(lfp_path, lfp_elecs)
+        rate, data = readhtks(ecog_path, ecog_elecs)
         data = data.squeeze()
         if verbose:
             print('done', flush=True)
         if ekg_elecs:
-            ekg_data = readhtks(lfp_path, ekg_elecs)[1]
+            ekg_data = readhtks(ecog_path, ekg_elecs)[1]
             ekg_ts = TimeSeries('EKG', H5DataIO(ekg_data, compression='gzip'),
                                 rate=rate, unit='V', conversion=.001,
                                 description='electrotorticography')
@@ -362,7 +365,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
 
     elif ecog_format == 'mat':
         with File(ecog400_path, 'r') as f:
-            data = f['ecogDS']['data'][:, lfp_elecs]
+            data = f['ecogDS']['data'][:, ecog_elecs]
             rate = f['ecogDS']['sampFreq'][:].ravel()[0]
 
             if ekg_elecs:
@@ -380,11 +383,10 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     if mini:
         data = data[:2000]
 
-    lfp_ts = ElectricalSeries(name='ECoG', data=H5DataIO(data, compression='gzip'),
-                              electrodes=all_elecs, rate=rate, description=ts_desc,
-                              conversion=0.001)
-    lfp = LFP(electrical_series=lfp_ts)
-    nwbfile.add_acquisition(lfp)
+    ecog_ts = ElectricalSeries(name='ECoG', data=H5DataIO(data, compression='gzip'),
+                               electrodes=ecog_elecs_region, rate=rate, description=ts_desc,
+                               conversion=0.001)
+    nwbfile.add_acquisition(ecog_ts)
 
     if mic:
         # Add microphone recording from room
@@ -412,7 +414,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
         bad_time = sio.loadmat(bad_time_file)['badTimeSegments']
         for row in bad_time:
             nwbfile.add_invalid_time_interval(start_time=row[0], stop_time=row[1],
-                                              tags=('ECoG artifact',), timeseries=lfp_ts)
+                                              tags=('ECoG artifact',), timeseries=ecog_ts)
 
     if hilb:
         data, rate = readhtks(hilbdir)

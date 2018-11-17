@@ -158,6 +158,7 @@ def auto_ecog(blockpath, ecog_elecs, verbose=False):
     subject_id = get_subject_id(blockname)
     htk_path1 = os.path.join(blockpath, 'RawHTK')
     htk_path2 = os.path.join(raw_htk_path, subject_id, blockname, 'RawHTK')
+    raw_fpath = os.path.join(raw_htk_path, subject_id, blockname, 'raw.mat')
     # try htk in blockdir, then backup
     if os.path.exists(htk_path1) or os.path.exists(htk_path2):
         if os.path.exists(htk_path1):
@@ -171,13 +172,13 @@ def auto_ecog(blockpath, ecog_elecs, verbose=False):
         data = data.squeeze()
         if verbose:
             print('done', flush=True)
-        return fs, data
 
     # try raw
-    raw_fpath = os.path.join(raw_htk_path, subject_id, blockname, 'raw.mat')
-    if os.path.exists(raw_fpath):
+    elif os.path.exists(raw_fpath):
         ecog_file = raw_fpath
         fs, data = load_wavs(raw_fpath)
+    else:
+        raise Exception('no ECoG found for ' + blockname)
 
     return fs, data, ecog_file
 

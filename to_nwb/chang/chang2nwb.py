@@ -133,12 +133,14 @@ def get_subject_id(blockname):
     return blockname[:blockname.find('_')]
 
 
-def gen_htk_num(i, n=65):
+def gen_htk_num(i, n=64):
     """Input 0-indexed channel number, output htk filename.
     Parameters
     ----------
     i: int
         zero-indexed channel number
+    n: intL
+        number of channels per wav
 
     Returns
     -------

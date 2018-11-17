@@ -59,6 +59,8 @@ def add_ekg(nwbfile, ecog_path, ekg_elecs):
                         description='electrotorticography')
     nwbfile.add_acquisition(ekg_ts)
 
+    return nwbfile
+
 
 def add_images_to_subject(subject, subject_image_list):
     images = Images(name='images')

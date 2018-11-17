@@ -306,7 +306,7 @@ def add_electrodes(nwbfile, elec_metadata_file, bad_elecs_inds):
 
 def chang2nwb(blockpath, outpath=None, session_start_time=None,
               session_description=None, identifier=None, anin4=False,
-              ecog_format='htk', external_subject=True, include_pitch=False, include_intensity=False,
+              ecog_format='auto', external_subject=True, include_pitch=False, include_intensity=False,
               speakers=True, mic=True, mini=False, hilb=False, verbose=False,
               imaging_path=None, parse_transcript=False, include_cortical_surfaces=True,
               include_electrodes=True, include_ekg=True, subject_image_list=None, **kwargs):
@@ -417,7 +417,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
                                   location=' ', filtering='none', group=electrode_group, bad=bad)
         ecog_elecs = list(range(256))
         ekg_elecs = []
-    ecog_elecs_region = nwbfile.create_electrode_table_region(ecog_elecs, 'all electrodes on brain')
+    ecog_elecs_region = nwbfile.create_electrode_table_region(ecog_elecs, 'ECoG electrodes on brain')
 
     # Read electrophysiology data from HTK files and add them to NWB file
     if ecog_format == 'auto':

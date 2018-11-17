@@ -450,7 +450,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
                                conversion=0.001)
     nwbfile.add_acquisition(ecog_ts)
 
-    if include_ekg:
+    if include_ekg and ekg_elecs:
         nwbfile = add_ekg(nwbfile, ecog_path, ekg_elecs)
 
     if mic:

@@ -423,7 +423,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     # Read electrophysiology data from HTK files and add them to NWB file
     if ecog_format == 'auto':
         fs, data, ecog_path = auto_ecog(blockpath, ecog_elecs, verbose=False)
-    if ecog_format == 'htk':
+    elif ecog_format == 'htk':
         if verbose:
             print('reading htk acquisition...', flush=True)
         ecog_rate, data = readhtks(ecog_path, ecog_elecs)

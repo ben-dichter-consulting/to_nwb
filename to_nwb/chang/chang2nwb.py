@@ -50,7 +50,7 @@ def add_ekg(nwbfile, ecog_path, ekg_elecs):
     elif os.path.split(ecog_path)[1] == 'ecog400.mat':
         with File(ecog_path, 'r') as f:
             ekg_data = f['ecogDS']['data'][:, ekg_elecs]
-        rate = 400.
+            rate = f['ecogDS']['sampFreq'][:].ravel()[0]
     elif os.path.split(ecog_path)[1] == 'raw.mat':
         rate, ekg_data = load_wavs(ecog_path, ekg_elecs)
 
@@ -422,7 +422,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
 
     # Read electrophysiology data from HTK files and add them to NWB file
     if ecog_format == 'auto':
-        fs, data, ecog_path = auto_ecog(blockpath, ecog_elecs, verbose=False)
+        ecog_rate, data, ecog_path = auto_ecog(blockpath, ecog_elecs, verbose=False)
     elif ecog_format == 'htk':
         if verbose:
             print('reading htk acquisition...', flush=True)

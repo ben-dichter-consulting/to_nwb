@@ -44,6 +44,22 @@ Convert ECoG to NWB
 """
 
 
+def add_ekg(nwbfile, ecog_path, ekg_elecs):
+    if os.path.split(ecog_path)[1] == 'RawHTK':
+        rate, ekg_data = readhtks(ecog_path, ekg_elecs)
+    elif os.path.split(ecog_path)[1] == 'ecog400.mat':
+        with File(ecog_path, 'r') as f:
+            ekg_data = f['ecogDS']['data'][:, ekg_elecs]
+        rate = 400.
+    elif os.path.split(ecog_path)[1] == 'raw.mat':
+        rate, ekg_data = load_wavs(ecog_path, ekg_elecs)
+
+    ekg_ts = TimeSeries('EKG', H5DataIO(ekg_data, compression='gzip'),
+                        rate=rate, unit='V', conversion=.001,
+                        description='electrotorticography')
+    nwbfile.add_acquisition(ekg_ts)
+
+
 def add_images_to_subject(subject, subject_image_list):
     images = Images(name='images')
     for image_path in subject_image_list:
@@ -128,6 +144,35 @@ def gen_htk_num(i, n=65):
 
     """
     return str(i//n+1) + str(np.mod(i, n)+1)
+
+
+def auto_ecog(blockpath, ecog_elecs, verbose=False):
+    basepath, blockname = os.path.split(blockpath)
+    subject_id = get_subject_id(blockname)
+    htk_path1 = os.path.join(blockpath, 'RawHTK')
+    htk_path2 = os.path.join(raw_htk_path, subject_id, blockname, 'RawHTK')
+    # try htk in blockdir, then backup
+    if os.path.exists(htk_path1) or os.path.exists(htk_path2):
+        if os.path.exists(htk_path1):
+            ecog_file = htk_path1
+
+        else:
+            ecog_file = htk_path2
+        if verbose:
+            print('reading htk acquisition...', flush=True)
+        fs, data = readhtks(ecog_file, ecog_elecs)
+        data = data.squeeze()
+        if verbose:
+            print('done', flush=True)
+        return fs, data
+
+    # try raw
+    raw_fpath = os.path.join(raw_htk_path, subject_id, blockname, 'raw.mat')
+    if os.path.exists(raw_fpath):
+        ecog_file = raw_fpath
+        fs, data = load_wavs(raw_fpath)
+
+    return fs, data, ecog_file
 
 
 def create_cortical_surfaces(pial_files):
@@ -368,6 +413,8 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     ecog_elecs_region = nwbfile.create_electrode_table_region(ecog_elecs, 'all electrodes on brain')
 
     # Read electrophysiology data from HTK files and add them to NWB file
+    if ecog_format == 'auto':
+        fs, data, ecog_path = auto_ecog(blockpath, ecog_elecs, verbose=False)
     if ecog_format == 'htk':
         if verbose:
             print('reading htk acquisition...', flush=True)
@@ -380,10 +427,11 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
         with File(ecog400_path, 'r') as f:
             data = f['ecogDS']['data'][:, ecog_elecs]
             ecog_rate = f['ecogDS']['sampFreq'][:].ravel()[0]
+        ecog_path = ecog400_path
 
     elif ecog_format == 'raw':
-        raw_fpath = os.path.join(raw_htk_path, subject_id, blockname, 'raw.mat')
-        ecog_rate, data = load_wavs(raw_fpath)
+        ecog_path = os.path.join(raw_htk_path, subject_id, blockname, 'raw.mat')
+        ecog_rate, data = load_wavs(ecog_path)
 
     else:
         raise ValueError('unrecognized argument: ecog_format')
@@ -398,22 +446,8 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
                                conversion=0.001)
     nwbfile.add_acquisition(ecog_ts)
 
-    if ecog_format in ('htk', 'mat', 'raw'):
-        ecog_found = ecog_format
-
     if include_ekg:
-        if ecog_found == 'htk':
-            ekg_data = readhtks(ecog_path, ekg_elecs)[1]
-        elif ecog_found == 'mat':
-            with File(ecog400_path, 'r') as f:
-                ekg_data = f['ecogDS']['data'][:, ekg_elecs]
-        elif ecog_found == 'raw':
-            ekg_data = load_wavs(raw_fpath, ekg_elecs)[1]
-
-        ekg_ts = TimeSeries('EKG', H5DataIO(ekg_data, compression='gzip'),
-                            rate=ecog_rate, unit='V', conversion=.001,
-                            description='electrotorticography')
-        nwbfile.add_acquisition(ekg_ts)
+        nwbfile = add_ekg(nwbfile, ecog_path, ekg_elecs)
 
     if mic:
         # Add microphone recording from room

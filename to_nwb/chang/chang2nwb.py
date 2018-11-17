@@ -370,6 +370,10 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
 
             if ekg_elecs:
                 ekg_data = f['ecogDS']['data'][:, ekg_elecs]
+                ekg_ts = TimeSeries('EKG', H5DataIO(ekg_data, compression='gzip'),
+                                    rate=rate, unit='V', conversion=.001,
+                                    description='electrotorticography')
+                nwbfile.add_acquisition(ekg_ts)
 
     elif ecog_format == 'raw':
         raw_fpath = os.path.join(raw_htk_path, subject_id, blockname, 'raw.mat')

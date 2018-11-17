@@ -2,36 +2,20 @@ from datetime import datetime
 
 import numpy as np
 import pandas as pd
-from nwbext_ecog.ecog_manual import CorticalSurfaces
+from nwbext_ecog.ecog_manual import CorticalSurfaces, ECoGSubject
 from pynwb import NWBFile, TimeSeries, NWBHDF5IO, get_manager
-from pynwb.ecephys import ElectricalSeries, LFP
-from pynwb.file import Subject
-from pynwb.misc import IntervalSeries
+from pynwb.ecephys import ElectricalSeries
 from pytz import timezone
 from scipy.io.wavfile import read as wavread
 
 # get_manager must come after dynamic imports
 manager = get_manager()
 
-external_cortical_mesh = True
-
-
-def add_cortical_surfaces(nwbfile):
-    cortical_surfaces = CorticalSurfaces()
-    for name in ('a', 'b', 'c'):
-        vertices = np.random.randn(10, 3)
-        faces = np.random.randint(0, 9, (15, 3))
-        cortical_surfaces.create_surface(name=name, faces=faces, vertices=vertices)
-    nwbfile.add_acquisition(cortical_surfaces)
-
-    return nwbfile
-
+external_subject = True
 
 nwbfile = NWBFile('session description', 'session identifier',
                   datetime.now().astimezone(), institution='UCSF',
                   lab='Chang Lab')
-
-nwbfile.subject = Subject(species='homo sapiens', age='PY21', sex='M')
 
 # electrodes
 devices = ['a', 'a', 'a', 'b', 'b', 'b']
@@ -71,13 +55,12 @@ all_elecs = nwbfile.create_electrode_table_region(
 
 
 # ECoG signal
-lfp_signal = np.random.randn(1000, 64)
-lfp_ts = ElectricalSeries('LFP', lfp_signal, all_elecs, rate=3000.,
-                          description='lfp_signal', conversion=0.001)
+ecog_signal = np.random.randn(1000, 64)
+ecog_ts = ElectricalSeries('ECoG', ecog_signal, all_elecs, rate=3000.,
+                           description='ecog_signal', conversion=0.001)
 
-lfp = LFP(electrical_series=lfp_ts)
 
-nwbfile.add_acquisition(lfp)
+nwbfile.add_acquisition(ecog_ts)
 
 # Trials
 # optional columns
@@ -102,10 +85,11 @@ for _, row in trials_df.iterrows():
 # bad times
 bad_times_data = [[5.4, 6.],
                   [10.4, 11.]]  # in seconds
-bad_times = IntervalSeries(name='bad_times')
 for start, stop in bad_times_data:
-    bad_times.add_interval(start, stop)
-nwbfile.add_acquisition(bad_times)
+    nwbfile.add_invalid_time_interval(start_time=start,
+                                      stop_time=stop,
+                                      tags=('ECoG artifact',),
+                                      timeseries=ecog_ts)
 
 # Create units table for neurons from micro-array recordings
 single_electrode_regions = [
@@ -143,21 +127,28 @@ nwbfile.add_stimulus(
                description="speaker recording")
 )
 
+subject = ECoGSubject(species='homo sapiens', age='PY21', sex='M')
+
+cortical_surfaces = CorticalSurfaces()
+for name in ('a', 'b', 'c'):
+    vertices = np.random.randn(10, 3)
+    faces = np.random.randint(0, 9, (15, 3))
+    cortical_surfaces.create_surface(name=name, faces=faces, vertices=vertices)
+subject.cortical_surfaces = cortical_surfaces
+
 # cortical surfaces
-if not external_cortical_mesh:
-    nwbfile = add_cortical_surfaces(nwbfile)
-else:
-    anat_fpath = 'S1.nwbaux'
-    anat_nwbfile = NWBFile(
-        session_description='session description', identifier='S1',
+if external_subject:
+    subject_fpath = 'S1.nwbaux'
+    subject_nwbfile = NWBFile(
+        session_description='session description', identifier='S1', subject=subject,
         session_start_time=datetime(1900, 1, 1).astimezone(timezone('UTC')))
-    anat_nwbfile = add_cortical_surfaces(anat_nwbfile)
-    with NWBHDF5IO(anat_fpath, manager=manager, mode='w') as anat_io:
-        anat_io.write(anat_nwbfile)
-    anat_read_io = NWBHDF5IO(anat_fpath, manager=manager, mode='r')
-    anat_nwbfile = anat_read_io.read()
-    cortical_surfaces = anat_nwbfile.acquisition['cortical_surfaces']
-    nwbfile.add_acquisition(cortical_surfaces)
+    with NWBHDF5IO(subject_fpath, manager=manager, mode='w') as subject_io:
+        subject_io.write(subject_nwbfile)
+    subject_read_io = NWBHDF5IO(subject_fpath, manager=manager, mode='r')
+    subject_nwbfile = subject_read_io.read()
+    subject = subject_nwbfile.subject
+
+nwbfile.subject = subject
 
 fout_path = 'ecog_example.nwb'
 with NWBHDF5IO(fout_path, manager=manager, mode='w') as io:
@@ -167,5 +158,5 @@ with NWBHDF5IO(fout_path, manager=manager, mode='w') as io:
 with NWBHDF5IO(fout_path, 'r') as io:
     io.read()
 
-if external_cortical_mesh:
-    anat_read_io.close()
+if external_subject:
+    subject_read_io.close()

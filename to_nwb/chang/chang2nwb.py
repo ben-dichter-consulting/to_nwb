@@ -229,7 +229,7 @@ def get_bad_elecs(blockpath):
 
     # I think bad channels is 1-indexed but I'm not sure
     if os.path.isfile(bad_channels_file) and os.stat(bad_channels_file).st_size:
-        dat = pd.read_csv(bad_channels_file, header=None, delimiter='  ', engine='python')
+        dat = pd.read_csv(bad_channels_file, header=None, delimiter=' ', engine='python')
         bad_elecs_inds = dat.values.ravel() - 1
         bad_elecs_inds = bad_elecs_inds[np.isfinite(bad_elecs_inds)]
     else:

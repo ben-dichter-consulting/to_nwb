@@ -17,7 +17,7 @@ from pynwb import NWBFile, NWBHDF5IO
 from pynwb.behavior import Position, BehavioralTimeSeries, BehavioralEvents
 from pynwb.ecephys import ElectricalSeries, LFP
 from pynwb.form.backends.hdf5.h5_utils import H5DataIO
-from pynwb.ophys import OpticalChannel, TwoPhotonSeries, Fluorescence, DfOverF, ImageSegmentation
+from pynwb.ophys import OpticalChannel, TwoPhotonSeries, Fluorescence, DfOverF, ImageSegmentation, CorrectedImageStack
 from pynwb.form.data_utils import DataChunkIterator
 
 
@@ -28,8 +28,32 @@ from lab.misc import lfp_helpers as lfph
 from lab.misc.auto_helpers import get_element_size_um, get_prairieview_version
 from lab.classes.dbclasses import dbExperiment
 
+from .sima_helper import get_motion_correction
 
-# TODO throughout, replace source fields with appropriate info
+
+def add_motion_correction(nwbfile, expt):
+    data = get_motion_correction(expt)
+    cis = CorrectedImageStack(
+        corrected=np.zeros((1, 1, 1)),
+        xy_translation=data)
+    imaging_mod = nwbfile.create_processing_module('imaging', 'imaging processing')
+    imaging_mod.add_container(cis)
+
+
+def add_transients(nwbfile, expt):
+    trans = expt.transientsData()
+    trial_num = 0
+    nwbfile.add_unit_column('intervals', description='start and end of transient in seconds', index=True)
+    nwbfile.add_unit_column('sigma', description='standard deviation of noise for this ROI')
+    for roi in trans:
+        data = roi[trial_num]
+        intervals = np.vstack((data['start_indices'], data['start_indices'])).T * expt.frame_period()
+        nwbfile.add_unit(
+            spike_times=data['max_amplitudes'],
+            intervals=intervals,
+            sigma=float(data['sigma'])
+        )
+
 
 def get_position(region):
 
@@ -83,7 +107,6 @@ def add_LFP(nwbfile, expt, count=1, region='CA1'):
                                                      compression='gzip'),
                                        electrodes=lfp_table_region,
                                        conversion=np.nan,
-                                       starting_time=0.0,
                                        rate=lfp_fs,
                                        resolution=np.nan)
 
@@ -151,7 +174,7 @@ def add_imaging(nwbfile, expt, z_spacing=25., device_name='2P Microscope', locat
             )
 
         else:
-            data_in = imaging_data[:30, :5, :6, :, :]  # use for dev testing for speed
+            data_in = np.ones((10, 10, 10))  # use for dev testing for speed
 
         # TODO parse env file to add power and pmt gain?
         image_series = TwoPhotonSeries(name='2p_Series_' + channel_name,
@@ -181,7 +204,8 @@ def add_behavior(nwbfile, expt):
 
     pos = Position(name='Normalized Position')
     pos.create_spatial_series(name='Normalized Position', rate=fs,
-                              data=bd['treadmillPosition'], reference_frame='0 is belt start',
+                              data=bd['treadmillPosition'][:, np.newaxis],
+                              reference_frame='0 is belt start',
                               conversion=0.001 * bd['trackLength'])
 
     behavior_module.add_container(pos)
@@ -289,7 +313,7 @@ def main(argv):
                       institution='Columbia University',  # optional
                       lab='Losonczy Lab')  # optional
 
-    add_imaging(nwbfile, expt, data_root=data_root)
+    add_imaging(nwbfile, expt, data_root=data_root, stub=True)
 
     add_LFP(nwbfile, expt)
 
@@ -300,11 +324,16 @@ def main(argv):
 
     ps = add_rois(nwbfile, imaging_module, expt)
 
-    rt_region = ps.create_roi_table_region('all ROIs', region=list(range(len(expt.rois()))))
+    rt_region = ps.create_roi_table_region('all ROIs',
+                                           region=list(range(len(expt.rois()))))
 
     add_signals(imaging_module, expt, rt_region)
 
     add_dff(imaging_module, expt, rt_region)
+
+    add_transients(nwbfile, expt)
+
+    add_motion_correction(nwbfile, expt)
 
     fout = os.path.join(data_root, 'test_file.nwb')
     print('writing...')
@@ -332,8 +361,6 @@ def main(argv):
     bad time segments
         apply to specific TimeSeries
     
-    
-    Actually save to disk
     """
 
 

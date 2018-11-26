@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import os
 
 from datetime import datetime
@@ -7,12 +9,12 @@ from dateutil.parser import parse as dateparse
 import pandas as pd
 
 from pynwb import NWBFile, NWBHDF5IO, TimeSeries
-from pynwb.file import Subject, DynamicTable
+from pynwb.file import Subject, TimeIntervals
 from pynwb.behavior import SpatialSeries, Position
 from pynwb.ecephys import ElectricalSeries, LFP
 from pynwb.form.data_utils import DataChunkIterator
 from pynwb.form.backends.hdf5.h5_utils import H5DataIO
-from ..extensions.general import CatCellInfo
+#from ..extensions.general import CatCellInfo
 from tqdm import tqdm
 
 
@@ -49,7 +51,6 @@ def parse_states(fpath):
 
 def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/YutaMouse41/YutaMouse41-150903',
              subject_xls=None, stub=False):
-
 
     subject_path, session_name = os.path.split(session_path)
     fpath_base = os.path.split(subject_path)[0]
@@ -101,19 +102,17 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     print('writing raw position data...', end='', flush=True)
     # raw position sensors file
     pos0 = nwbfile.add_acquisition(
-        SpatialSeries('position sensor0',
-                      'raw sensor data from sensor 0',
+        SpatialSeries('position_sensor0',
                       H5DataIO(pos_df[['x0', 'y0']].values, compression='gzip'),
-                      'unknown',
+                      'unknown', description='raw sensor data from sensor 0',
                       timestamps=H5DataIO(pos_df.index.values, compression='gzip'),
                       resolution=np.nan))
     all_ts.append(pos0)
 
     pos1 = nwbfile.add_acquisition(
         SpatialSeries('position sensor1',
-                      'raw sensor data from sensor 1',
                       H5DataIO(pos_df[['x1', 'y1']].values, compression='gzip'),
-                      'unknown',
+                      'unknown', description='raw sensor data from sensor 1',
                       timestamps=H5DataIO(pos_df.index.values, compression='gzip'),
                       resolution=np.nan))
     all_ts.append(pos1)
@@ -159,11 +158,9 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
                               'ch_entL': 72, 'ch_entR': 71, 'ch_SsolL': 73,
                               'ch_SsolR': 70}
     for name, num in special_electrode_dict.items():
-        nwbfile.add_electrode(id=num, x=np.nan, y=np.nan, z=np.nan,
-                              imp=np.nan, location='unknown',
-                              filtering='unknown',
-                              electrode_description=name,
-                              group=electrode_group)
+        nwbfile.add_electrode(
+            id=num, x=np.nan, y=np.nan, z=np.nan, imp=np.nan, location='unknown',
+            filtering='unknown', electrode_description=name, group=electrode_group)
         nwbfile.create_electrode_table_region([electrode_counter], name)
         electrode_counter += 1
 
@@ -190,25 +187,21 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
 
     print('making ElectricalSeries objects for LFP...', end='', flush=True)
     all_lfp_electrical_series = ElectricalSeries(
-        'all_lfp',
-        'lfp signal for all shank electrodes',
-        data,
-        all_table_region,
-        conversion=np.nan,
-        rate=lfp_fs,
-        resolution=np.nan)
+        'all_lfp', data, all_table_region, conversion=np.nan, rate=lfp_fs,
+        resolution=np.nan, description='lfp signal for all shank electrodes')
+
     all_ts.append(all_lfp_electrical_series)
-    nwbfile.add_acquisition(LFP(name='all_lfp',
-                                electrical_series=all_lfp_electrical_series))
+    nwbfile.add_acquisition(
+        LFP(name='all_lfp', electrical_series=all_lfp_electrical_series))
     print('done.')
 
     electrical_series = ElectricalSeries(
-        'reference_lfp', 'signal used as the reference lfp',
-        H5DataIO(all_channels[:, lfp_channel], compression='gzip'),
-        lfp_table_region, conversion=np.nan, rate=lfp_fs, resolution=np.nan)
+        'reference_lfp', H5DataIO(all_channels[:, lfp_channel], compression='gzip'),
+        lfp_table_region, conversion=np.nan, rate=lfp_fs, resolution=np.nan,
+        description='signal used as the reference lfp')
 
-    nwbfile.add_acquisition(LFP(name='reference_lfp',
-                                electrical_series=electrical_series))
+    nwbfile.add_acquisition(
+        LFP(name='reference_lfp', electrical_series=electrical_series))
     all_ts.append(electrical_series)
 
     # create epochs corresponding to experiments/environments for the mouse
@@ -218,6 +211,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
 
     module_behavior = nwbfile.create_processing_module(
         name='behavior', description='description')
+    nwbfile.add_epoch_column('label', 'name of epoch')
     for label in task_types:
 
         file = os.path.join(session_path, session_name + '__' + label + '.mat')
@@ -258,11 +252,9 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
             pos_obj = Position(name=label + '_position',
                                spatial_series=spatial_series_object)
             module_behavior.add_container(pos_obj)
-
             for i, window in enumerate(exp_times):
-                nwbfile.create_epoch(start_time=window[0], stop_time=window[1],
-                                     tags=tuple(), description=label + '_' + str(i),
-                                     timeseries=[])
+                nwbfile.add_epoch(start_time=window[0], stop_time=window[1],
+                                  label=label + '_' + str(i))
             print('done.')
 
     # load celltypes
@@ -288,8 +280,9 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     this_file = matin.fname == session_name
     celltype_ids = matin.fineCellType.ravel()[this_file]
     region_ids = matin.region.ravel()[this_file]
-    unit_ids = matin.unitID.ravel()[this_file]
-    shanks = matin.shank.ravel()[this_file] - 1  # change from 1 to 0-indexing
+    global_ids = matin.unitID.ravel()[this_file]
+    shank_ids = matin.unitIDshank.ravel()[this_file] - 2  # 0 and 1 are noised
+    shanks = matin.shank.ravel()[this_file]
 
     celltype_names = []
     for celltype_id, region_id in zip(celltype_ids, region_ids):
@@ -304,17 +297,14 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
             celltype_names.append(celltype_dict[celltype_id])
 
     nwbfile.add_unit_column('cell_type', 'name of cell type')
-    nwbfile.add_unit_column('shank', '0-indexed shank number')
+    nwbfile.add_unit_column('shank', '1-indexed shank number')
+    nwbfile.add_unit_column('global_id', 'global id for cell for entire experiment')
 
-    for unit_id, celltype, shank in zip(unit_ids, celltype_names, shanks):
-        nwbfile.add_unit({'id': unit_id, 'cell_type': celltype, 'shank': shank})
-
-    ut_obj = ns.build_unit_times(session_path, unit_ids=unit_ids)
-
-    module_cellular = nwbfile.create_processing_module(
-        'cellular', description='description')
-
-    module_cellular.add_container(ut_obj)
+    for unit_id, celltype, shank, shank_id in zip(global_ids, celltype_names, shanks, shank_ids):
+        df = ns.get_clusters_single_shank(session_path, shank)
+        spike_times = df['time'][df['id'] == shank_id].values
+        nwbfile.add_unit(global_id=unit_id, cell_type=celltype, shank=shank,
+                         spike_times=spike_times)
 
     trialdata_path = os.path.join(session_path, session_name + '__EightMazeRun.mat')
     trials_data = loadmat(trialdata_path)['EightMazeRun']
@@ -323,11 +313,11 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     trialdatainfo = [x[0] for x in loadmat(trialdatainfo_path)['EightMazeRunInfo'][0]]
 
     features = trialdatainfo[:7]
-    features[:2] = 'start', 'end'
-    [nwbfile.add_trial_column(x, 'description') for x in features]
+    features[:2] = 'start_time', 'stop_time'
+    [nwbfile.add_trial_column(x, 'description') for x in features[2:]]
 
     for trial_data in trials_data:
-        nwbfile.add_trial({lab: dat for lab, dat in zip(features, trial_data[:7])})
+        nwbfile.add_trial(**{lab: dat for lab, dat in zip(features, trial_data[:7])})
 
     mono_syn_fpath = os.path.join(session_path, session_name+'-MonoSynConvClick.mat')
 
@@ -335,24 +325,22 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     exc = matin['FinalExcMonoSynID']
     inh = matin['FinalInhMonoSynID']
 
-    exc_obj = CatCellInfo(name='excitatory_connections',
-                          indices_values=[], cell_index=exc[:, 0] - 1, indices=exc[:, 1] - 1)
-    module_cellular.add_container(exc_obj)
-    inh_obj = CatCellInfo(name='inhibitory_connections',
-                          indices_values=[], cell_index=inh[:, 0] - 1, indices=inh[:, 1] - 1)
-    module_cellular.add_container(inh_obj)
+    #exc_obj = CatCellInfo(name='excitatory_connections',
+    #                      indices_values=[], cell_index=exc[:, 0] - 1, indices=exc[:, 1] - 1)
+    #module_cellular.add_container(exc_obj)
+    #inh_obj = CatCellInfo(name='inhibitory_connections',
+    #                      indices_values=[], cell_index=inh[:, 0] - 1, indices=inh[:, 1] - 1)
+    #module_cellular.add_container(inh_obj)
 
     sleep_state_fpath = os.path.join(session_path, session_name+'--StatePeriod.mat')
     matin = loadmat(sleep_state_fpath)['StatePeriod']
 
-    table = DynamicTable(name='states', description='sleep states of animal')
-    table.add_column(name='start', description='start time')
-    table.add_column(name='end', description='end time')
-    table.add_column(name='state', description='sleep state')
+    table = TimeIntervals(name='states', description='sleep states of animal')
+    table.add_column(name='label', description='sleep state')
 
     for name in matin.dtype.names:
         for row in matin[name][0][0]:
-            table.add_row({'start': row[0], 'end': row[1], 'state': name})
+            table.add_row(start_time=row[0], stop_time=row[1], label=name)
 
     module_behavior.add_container(table)
 

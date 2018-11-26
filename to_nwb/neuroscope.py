@@ -10,7 +10,6 @@ from pynwb.ecephys import ElectricalSeries, LFP, SpikeEventSeries, Clustering
 from pynwb.misc import AnnotationSeries
 from pynwb.form.backends.hdf5.h5_utils import H5DataIO
 from pynwb.form.data_utils import DataChunkIterator
-from pynwb.misc import UnitTimes
 from tqdm import tqdm
 from glob import glob
 
@@ -22,19 +21,22 @@ def load_xml(filepath):
     return soup
 
 
-def get_channel_groups(xml_filepath):
+def get_channel_groups(session_path):
     """Get the groups of channels that are recorded on each shank from the xml
     file
 
     Parameters
     ----------
-    xml_filepath: str
+    session_path: str
 
     Returns
     -------
     list(list)
 
     """
+
+    fpath_base, fname = os.path.split(session_path)
+    xml_filepath = os.path.join(session_path, fname + '.xml')
 
     soup = load_xml(xml_filepath)
 
@@ -45,17 +47,20 @@ def get_channel_groups(xml_filepath):
     return channel_groups
 
 
-def get_shank_channels(xml_filepath):
+def get_shank_channels(session_path):
     """Read the channels on the shanks in Neuroscope xml
 
     Parameters
     ----------
-    xml_filepath: str
+    session_path: str
 
     Returns
     -------
 
     """
+    fpath_base, fname = os.path.split(session_path)
+    xml_filepath = os.path.join(session_path, fname + '.xml')
+
     soup = load_xml(xml_filepath)
 
     shank_channels = [[int(channel.string)
@@ -64,19 +69,23 @@ def get_shank_channels(xml_filepath):
     return shank_channels
 
 
-def get_lfp_sampling_rate(xml_filepath):
+def get_lfp_sampling_rate(session_path):
     """Reads the LFP Sampling Rate from the xml parameter file of the
     Neuroscope format
 
     Parameters
     ----------
-    xml_filepath: str
+    session_path: str
 
     Returns
     -------
     fs: float
 
     """
+
+    session_name = os.path.split(session_path)[1]
+    xml_filepath = os.path.join(session_path, session_name + '.xml')
+
     return float(load_xml(xml_filepath).lfpSamplingRate.string)
 
 
@@ -146,7 +155,7 @@ def read_spike_clustering(session_path, shankn):
 
 
     """
-    _, session_name = os.path.split(session_path)
+    session_name = os.path.split(session_path)[1]
     id_file = os.path.join(session_path, session_name + '.clu.' + str(shankn))
     id_df = pd.read_csv(id_file, names=('id',))
     id_df = id_df[1:]  # the first number is the number of clusters
@@ -174,7 +183,7 @@ def get_clusters_single_shank(session_path, shankn, fs=20000.):
 
     """
 
-    _, session_name = os.path.split(session_path)
+    session_name = os.path.split(session_path)[1]
     spike_times = read_spike_times(session_path, shankn, fs=fs)
     spike_ids = read_spike_clustering(session_path, shankn)
     df = pd.DataFrame({'id': spike_ids, 'time': spike_times})
@@ -199,52 +208,13 @@ def write_clustering(module_cellular, session_path, shanks, fs=20000.):
     return module_cellular
 
 
-def build_unit_times(session_path, shanks=None, name='UnitTimes',
-                     unit_ids=None):
-    """
-
-    Parameters
-    ----------
-    session_path: str
-    shanks: None | list(ints)
-        shank numbers to process. If None, attempt to automatically determine
-        the number of shanks
-    name: str
-    unit_ids: array-like if ints, optional
-        If not provided, count from 0
-
-    Returns
-    -------
-
-    """
-    session_name = os.path.split(session_path)[1]
-    if shanks is None:
-        shanks = [x[-1] for x in
-                  glob(os.path.join(session_path, session_name + '.res.*'))]
-
-    ut = UnitTimes(name=name)
-
-    cell_counter = 0
-    for shank_num in shanks:
-        df = get_clusters_single_shank(session_path, shank_num)
-        for cluster_num, idf, in df.groupby('id'):
-            if unit_ids is not None:
-                unit_id = unit_ids[cell_counter]
-            else:
-                unit_id = cell_counter
-            ut.add_spike_times(int(unit_id), list(idf['time']))
-            cell_counter += 1
-
-    return ut
-
-
 def write_electrode_table(nwbfile, session_path, electrode_positions=None,
                           impedences=None, locations=None, filterings=None):
     """
 
     Parameters
     ----------
-    nwbfile; pynwb.NWBFile
+    nwbfile: pynwb.NWBFile
     session_path: str
     electrode_positions: Iterable(Iterable(float))
     impedences: Iterable(float)
@@ -256,9 +226,9 @@ def write_electrode_table(nwbfile, session_path, electrode_positions=None,
 
     """
     fpath_base, fname = os.path.split(session_path)
-    xml_filepath = os.path.join(session_path, fname + '.xml')
 
-    shank_channels = get_shank_channels(xml_filepath)
+    shank_channels = get_shank_channels(session_path)
+    nwbfile.add_electrode_column('shank', '1-indexed shank numbers')
 
     electrode_counter = 0
     device = nwbfile.create_device('device', fname + '.xml')
@@ -290,11 +260,9 @@ def write_electrode_table(nwbfile, session_path, electrode_positions=None,
             else:
                 filtering = filterings[channel]
 
-            nwbfile.add_electrode(channel, pos[0], pos[1], pos[2], imp=imp,
-                                  location=location, filtering=filtering,
-                                  description='electrode {} of shank {}, channel {}'.format(
-                                      electrode_counter, shankn, channel),
-                                  group=electrode_group)
+            nwbfile.add_electrode(float(pos[0]), float(pos[1]), float(pos[2]),
+                                  imp=imp, location=location, filtering=filtering,
+                                  group=electrode_group, shank=shankn)
 
             electrode_counter += 1
 
@@ -321,14 +289,13 @@ def write_lfp(nwbfile, session_path, stub=False):
 
     """
     fpath_base, fname = os.path.split(session_path)
-    xml_filepath = os.path.join(session_path, fname + '.xml')
     lfp_filepath = os.path.join(session_path, fname + '.eeg')
 
-    lfp_fs = get_lfp_sampling_rate(xml_filepath)
-    shank_channels = get_shank_channels(xml_filepath)
+    lfp_fs = get_lfp_sampling_rate(session_path)
+    shank_channels = get_shank_channels(session_path)
     all_shank_channels = np.concatenate(shank_channels)
 
-    nelecs = len(nwbfile.ec_electrodes)
+    nelecs = len(nwbfile.electrodes)
 
     all_table_region = nwbfile.create_electrode_table_region(
         list(range(nelecs)), 'all electrodes')
@@ -344,10 +311,10 @@ def write_lfp(nwbfile, session_path, stub=False):
         data = H5DataIO(data, compression='gzip')
 
     all_lfp_electrical_series = ElectricalSeries(
-        'all_lfp',
-        'lfp signal for all shank electrodes',
-        data,
-        all_table_region,
+        name='all_lfp',
+        description='lfp signal for all shank electrodes',
+        data=data,
+        electrodes=all_table_region,
         conversion=np.nan,
         rate=lfp_fs,
         resolution=np.nan)
@@ -373,7 +340,7 @@ def write_events(nwbfile, session_path, suffixes=None):
     nwbfile
 
     """
-    _, session_name = os.path.split(session_path)
+    session_name = os.path.split(session_path)[1]
 
     if suffixes is None:
         evt_files = glob(os.path.join(session_path, session_name) + '.evt.*') + \
@@ -409,7 +376,7 @@ def write_spike_waveforms(nwbfile, session_path, shankn):
 
     """
 
-    _, session_name = os.path.split(session_path)
+    session_name = os.path.split(session_path)[1]
     xml_filepath = os.path.join(session_path, session_name + '.xml')
     soup = load_xml(xml_filepath)
     nsamps = float(soup.spikes.nSamples.string)
@@ -429,3 +396,16 @@ def write_spike_waveforms(nwbfile, session_path, shankn):
     spike_times = read_spike_times(session_path, shankn)
 
     SpikeEventSeries(name='spike_waveforms', data=spks, timestamps=spike_times, electrodes=table_region)
+
+def write_units(nwbfile, session_path):
+    nwbfile.add_unit_column('shank', '1-indexed shank number')
+    nwbfile.add_unit_column('cluster_id', '0-indexed id of cluster of shank')
+
+    channel_groups = get_channel_groups(session_path)
+    for shankn in range(len(channel_groups)):
+        df = get_clusters_single_shank(session_path, shankn + 1)
+        for cluster_id, idf in df.groupby('id'):
+            nwbfile.add_unit(shank=shankn + 1, spike_times=idf['time'].values,
+                             cluster_id=cluster_id)
+
+    return nwbfile

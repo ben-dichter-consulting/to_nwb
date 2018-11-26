@@ -14,29 +14,23 @@ subject_path, session_id = os.path.split(session_path)
 subject_id = os.path.split(subject_path)[1]
 
 
-nwbfile = NWBFile(source=session_path,
-                  session_description='session_description',
+nwbfile = NWBFile(session_description='session_description',
                   identifier=subject_id + '_' + session_id,
-                  session_start_time=datetime.now(),
-                  file_create_date=datetime.now(),
+                  session_start_time=datetime.now().astimezone(),
+                  file_create_date=datetime.now().astimezone(),
                   experimenter='experimenter',
                   session_id=session_id,
-                  institution='institution',
+                  institution='NYU',
                   lab='lab',
                   related_publications='pubs')
 
-nwbfile.subject = Subject(subject_id=subject_id, species='species', source='source')
+nwbfile.subject = Subject(subject_id=subject_id, species='Mus musculus')
 
 nwbfile = ns.write_electrode_table(nwbfile, session_path)
 
 nwbfile = ns.write_lfp(nwbfile, session_path, stub=stub)
 
-ut_obj = ns.build_unit_times(session_path)
-
-module_cellular = nwbfile.create_processing_module(
-    'cellular', source=session_path, description='holds cellular data')
-
-module_cellular.add_container(ut_obj)
+nwbfile = ns.write_units(nwbfile, session_path)
 
 nwbfile = ns.write_events(nwbfile, session_path)
 

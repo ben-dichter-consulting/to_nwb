@@ -343,6 +343,28 @@ def write_lfp(nwbfile, data, fs, name='LFP', description='local field potential 
     nwbfile.add_acquisition(LFP(name=name, electrical_series=all_lfp_electrical_series))
 
 
+def add_lfp(nwbfile, session_path, name='LFP', description='local field potential signal', stub=False):
+    """
+
+    Parameters
+    ----------
+    nwbfile: pynwb.NWBFile
+    session_path: str
+    name: str
+    description: str
+    stub: bool, optional
+        Default is False. If True, don't read LFP, but instead add a small
+        amount of placeholder data. This is useful for rapidly checking new
+        features without the time-intensive data read step.
+
+    """
+
+    fs, data = read_lfp(session_path, stub=stub)
+    shank_channels = get_shank_channels(session_path)
+    all_shank_channels = np.concatenate(shank_channels)
+    write_lfp(nwbfile, data[:, all_shank_channels], fs, name, description)
+
+
 def write_events(nwbfile, session_path, suffixes=None):
     """
 

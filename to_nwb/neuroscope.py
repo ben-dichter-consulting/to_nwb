@@ -2,17 +2,17 @@
 Author: Ben Dichter
 """
 import os
+from glob import glob
 
 import numpy as np
 import pandas as pd
 from bs4 import BeautifulSoup
-from pynwb.ecephys import ElectricalSeries, LFP, SpikeEventSeries, Clustering
 from pynwb.behavior import SpatialSeries
-from pynwb.misc import AnnotationSeries
+from pynwb.ecephys import ElectricalSeries, LFP, SpikeEventSeries, Clustering
 from pynwb.form.backends.hdf5.h5_utils import H5DataIO
 from pynwb.form.data_utils import DataChunkIterator
+from pynwb.misc import AnnotationSeries
 from tqdm import tqdm
-from glob import glob
 
 
 def load_xml(filepath):

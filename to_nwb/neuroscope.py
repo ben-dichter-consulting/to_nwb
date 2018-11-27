@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 from bs4 import BeautifulSoup
 from pynwb.ecephys import ElectricalSeries, LFP, SpikeEventSeries, Clustering
+from pynwb.behavior import SpatialSeries
 from pynwb.misc import AnnotationSeries
 from pynwb.form.backends.hdf5.h5_utils import H5DataIO
 from pynwb.form.data_utils import DataChunkIterator
@@ -89,21 +90,19 @@ def get_lfp_sampling_rate(session_path):
     return float(load_xml(xml_filepath).lfpSamplingRate.string)
 
 
-def get_position_data(session_path, fs=1250./32.,
+def add_position_data(nwbfile, session_path, fs=1250./32.,
                       names=('x0', 'y0', 'x1', 'y1')):
     """Read raw position sensor data from .whl file
 
     Parameters
     ----------
+    nwbfile: pynwb.NWBFile
     session_path: str
     fs: float
         sampling rate
     names: iterable
         names of column headings
 
-    Returns
-    -------
-    df: pandas.DataFrame
     """
     _, session_name = os.path.split(session_path)
     print('warning: time may not be aligned')
@@ -113,7 +112,19 @@ def get_position_data(session_path, fs=1250./32.,
     df.index = np.arange(len(df)) / fs
     df.index.name = 'tt (sec)'
 
-    return df
+    nwbfile.add_acquisition(
+        SpatialSeries('position_sensor0',
+                      H5DataIO(df[['x0', 'y0']].values, compression='gzip'),
+                      'unknown', description='raw sensor data from sensor 0',
+                      timestamps=H5DataIO(df.index.values, compression='gzip'),
+                      resolution=np.nan))
+
+    nwbfile.add_acquisition(
+        SpatialSeries('position sensor1',
+                      H5DataIO(df[['x1', 'y1']].values, compression='gzip'),
+                      'unknown', description='raw sensor data from sensor 1',
+                      timestamps=H5DataIO(df.index.values, compression='gzip'),
+                      resolution=np.nan))
 
 
 def read_spike_times(session_path, shankn, fs=20000.):
@@ -229,6 +240,8 @@ def write_electrode_table(nwbfile, session_path, electrode_positions=None,
 
     shank_channels = get_shank_channels(session_path)
     nwbfile.add_electrode_column('shank', '1-indexed shank numbers')
+    nwbfile.add_electrode_column('electrode_description',
+                                 description='description of electrode description???')
 
     electrode_counter = 0
     device = nwbfile.create_device('device', fname + '.xml')

@@ -14,12 +14,11 @@ from pynwb.behavior import SpatialSeries, Position
 from pynwb.ecephys import ElectricalSeries, LFP
 from pynwb.form.data_utils import DataChunkIterator
 from pynwb.form.backends.hdf5.h5_utils import H5DataIO
-#from ..extensions.general import CatCellInfo
 from tqdm import tqdm
 
 
 from to_nwb.utils import find_discontinuities
-from to_nwb import neuroscope as ns
+import to_nwb.neuroscope as ns
 
 from ephys_analysis.band_analysis import filter_lfp, hilbert_lfp
 
@@ -85,8 +84,6 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
                       subject=subject,
                       related_publications='DOI:10.1016/j.neuron.2016.12.011')
 
-    all_ts = []
-
     xml_filepath = os.path.join(session_path, session_name + '.xml')
 
     shank_channels = ns.get_shank_channels(xml_filepath)
@@ -95,27 +92,8 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
 
     lfp_channel = 0  # value taken from Yuta's spreadsheet
 
-    print('reading raw position data...', end='', flush=True)
-    pos_df = ns.get_position_data(session_path)
-    print('done.')
-
-    print('writing raw position data...', end='', flush=True)
-    # raw position sensors file
-    pos0 = nwbfile.add_acquisition(
-        SpatialSeries('position_sensor0',
-                      H5DataIO(pos_df[['x0', 'y0']].values, compression='gzip'),
-                      'unknown', description='raw sensor data from sensor 0',
-                      timestamps=H5DataIO(pos_df.index.values, compression='gzip'),
-                      resolution=np.nan))
-    all_ts.append(pos0)
-
-    pos1 = nwbfile.add_acquisition(
-        SpatialSeries('position sensor1',
-                      H5DataIO(pos_df[['x1', 'y1']].values, compression='gzip'),
-                      'unknown', description='raw sensor data from sensor 1',
-                      timestamps=H5DataIO(pos_df.index.values, compression='gzip'),
-                      resolution=np.nan))
-    all_ts.append(pos1)
+    print('reading and writing raw position data...', end='', flush=True)
+    ns.add_position_data(nwbfile, session_path)
     print('done.')
 
     print('setting up electrodes...', end='', flush=True)
@@ -190,7 +168,6 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
         'all_lfp', data, all_table_region, conversion=np.nan, rate=lfp_fs,
         resolution=np.nan, description='lfp signal for all shank electrodes')
 
-    all_ts.append(all_lfp_electrical_series)
     nwbfile.add_acquisition(
         LFP(name='all_lfp', electrical_series=all_lfp_electrical_series))
     print('done.')
@@ -202,7 +179,6 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
 
     nwbfile.add_acquisition(
         LFP(name='reference_lfp', electrical_series=electrical_series))
-    all_ts.append(electrical_series)
 
     # create epochs corresponding to experiments/environments for the mouse
     task_types = ['OpenFieldPosition_ExtraLarge', 'OpenFieldPosition_New_Curtain',
@@ -305,6 +281,9 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
         spike_times = df['time'][df['id'] == shank_id].values
         nwbfile.add_unit(global_id=unit_id, cell_type=celltype, shank=shank,
                          spike_times=spike_times)
+
+    module_cellular = nwbfile.create_processing_module(
+        'cellular', description='description')
 
     trialdata_path = os.path.join(session_path, session_name + '__EightMazeRun.mat')
     trials_data = loadmat(trialdata_path)['EightMazeRun']

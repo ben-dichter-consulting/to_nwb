@@ -37,6 +37,8 @@ def isin_time_windows(tt, tbounds, inclusive_left=True, inclusive_right=False):
     util: Is time inside time window(s)?
     :param tt:      n,    np.array   time counter
     :param tbounds: k, 2  np.array   time windows
+    :param inclusive_left:  bool
+    :param inclusive_right: bool
     :return:        n, bool          logical indicating if time is in any of the windows
     """
     # check if tbounds in np.array and if not fix it

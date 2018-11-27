@@ -1,13 +1,4 @@
-from itertools import tee
-
 import numpy as np
-
-
-def pairwise(iterable):
-    "s -> (s0,s1), (s1,s2), (s2, s3), ..."
-    a, b = tee(iterable)
-    next(b, None)
-    return zip(a, b)
 
 
 def find_discontinuities(tt, factor=10000):
@@ -19,7 +10,7 @@ def find_discontinuities(tt, factor=10000):
 
     if len(before_jumps):
         out = np.array([tt[0], tt[before_jumps[0]]])
-        for i, j in pairwise(before_jumps):
+        for i, j in zip(before_jumps, before_jumps[1:]):
             out = np.vstack((out, [tt[i + 1], tt[j]]))
         out = np.vstack((out, [tt[before_jumps[-1] + 1], tt[-1]]))
         return out
@@ -84,5 +75,4 @@ def remove_duplicates(li):
     for e in li:
         if e not in res:
             res.append(e)
-
     return res

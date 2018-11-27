@@ -27,8 +27,8 @@ nwbfile = NWBFile(session_description='session_description',
 nwbfile.subject = Subject(subject_id=subject_id, species='Mus musculus')
 
 ns.write_electrode_table(nwbfile, session_path)
-ns.write_lfp(nwbfile, session_path, stub=stub)
-ns.write_units(nwbfile, session_path)
+ns.add_lfp(nwbfile, session_path, stub=stub)
+ns.add_units(nwbfile, session_path)
 ns.write_events(nwbfile, session_path)
 
 out_fname = session_path

@@ -11,16 +11,48 @@ import pandas as pd
 from pynwb import NWBFile, NWBHDF5IO, TimeSeries
 from pynwb.file import Subject, TimeIntervals
 from pynwb.behavior import SpatialSeries, Position
-from pynwb.ecephys import ElectricalSeries, LFP
-from pynwb.form.data_utils import DataChunkIterator
 from pynwb.form.backends.hdf5.h5_utils import H5DataIO
-from tqdm import tqdm
 
 
 from to_nwb.utils import find_discontinuities
 import to_nwb.neuroscope as ns
 
 from ephys_analysis.band_analysis import filter_lfp, hilbert_lfp
+
+special_electrode_dict = {'ch_wait': 79, 'ch_arm': 78, 'ch_solL': 76,
+                          'ch_solR': 77, 'ch_dig1': 65, 'ch_dig2': 68,
+                          'ch_entL': 72, 'ch_entR': 71, 'ch_SsolL': 73,
+                          'ch_SsolR': 70}
+
+lfp_channel = 0  # value taken from Yuta's spreadsheet
+
+
+def add_special_electrodes(nwbfile, session_path):
+    """
+
+    Parameters
+    ----------
+    nwbfile: pynwb.NWBFile
+    session_path: str
+
+
+    """
+    session_name = os.path.split(session_path)[1]
+    device_name = 'special'
+    device = nwbfile.create_device(device_name, session_name + '.xml')
+    electrode_group = nwbfile.create_electrode_group(
+        name=device_name + '_electrodes',
+        description=device_name,
+        device=device,
+        location='unknown')
+
+    electrode_counter = len(nwbfile.electrodes)
+    for name, channel in special_electrode_dict.items():
+        nwbfile.add_electrode(
+            id=channel, x=np.nan, y=np.nan, z=np.nan, imp=np.nan, location='unknown',
+            filtering='unknown', electrode_description=name, group=electrode_group, shank=-1)
+        nwbfile.create_electrode_table_region([electrode_counter], name)
+        electrode_counter += 1
 
 
 def parse_states(fpath):
@@ -84,109 +116,35 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
                       subject=subject,
                       related_publications='DOI:10.1016/j.neuron.2016.12.011')
 
-    xml_filepath = os.path.join(session_path, session_name + '.xml')
-
-    shank_channels = ns.get_shank_channels(xml_filepath)
-    all_shank_channels = np.concatenate(shank_channels)
-    lfp_fs = ns.get_lfp_sampling_rate(xml_filepath)
-
-    lfp_channel = 0  # value taken from Yuta's spreadsheet
-
     print('reading and writing raw position data...', end='', flush=True)
     ns.add_position_data(nwbfile, session_path)
-    print('done.')
 
     print('setting up electrodes...', end='', flush=True)
-    nwbfile.add_electrode_column('electrode_description',
-                                 description='description of electrode description???')
-    # shank electrodes
-    electrode_counter = 0
-    for shankn, channels in enumerate(shank_channels):
-        device_name = 'shank{}'.format(shankn)
-        device = nwbfile.create_device(device_name, session_name + '.xml')
-        electrode_group = nwbfile.create_electrode_group(
-            name=device_name + '_electrodes',
-            description=device_name,
-            device=device,
-            location='unknown')
-        for channel in channels:
-            nwbfile.add_electrode(id=channel, x=np.nan, y=np.nan, z=np.nan,  # position?
-                                  imp=np.nan, location='unknown',
-                                  filtering='unknown',
-                                  electrode_description='electrode {} of shank {}, channel {}'.format(
-                                      electrode_counter, shankn, channel),
-                                  group=electrode_group)
+    ns.write_electrode_table(nwbfile, session_path)
 
-            if channel == lfp_channel:
-                lfp_table_region = nwbfile.create_electrode_table_region(
-                    [electrode_counter], 'lfp electrode')
+    add_special_electrodes(nwbfile, session_path)
 
-            electrode_counter += 1
-
-    # special electrodes
-    device_name = 'special'
-    device = nwbfile.create_device(device_name, session_name + '.xml')
-    electrode_group = nwbfile.create_electrode_group(
-        name=device_name + '_electrodes',
-        description=device_name,
-        device=device,
-        location='unknown')
-    special_electrode_dict = {'ch_wait': 79, 'ch_arm': 78, 'ch_solL': 76,
-                              'ch_solR': 77, 'ch_dig1': 65, 'ch_dig2': 68,
-                              'ch_entL': 72, 'ch_entR': 71, 'ch_SsolL': 73,
-                              'ch_SsolR': 70}
-    for name, num in special_electrode_dict.items():
-        nwbfile.add_electrode(
-            id=num, x=np.nan, y=np.nan, z=np.nan, imp=np.nan, location='unknown',
-            filtering='unknown', electrode_description=name, group=electrode_group)
-        nwbfile.create_electrode_table_region([electrode_counter], name)
-        electrode_counter += 1
-
-    all_table_region = nwbfile.create_electrode_table_region(
-        list(range(electrode_counter)), 'all electrodes')
-    print('done.')
-
-    # lfp
     print('reading LFPs...', end='', flush=True)
+    lfp_fs, all_channels_data = ns.read_lfp(session_path, stub=stub)
+    shank_channels = ns.get_shank_channels(session_path)
+    all_shank_channels = np.concatenate(shank_channels)
+    lfp_data = all_channels_data[:, all_shank_channels]
+    ns.write_lfp(nwbfile, lfp_data, lfp_fs, name='all_lfp',
+                 description='lfp signal for all shank electrodes')
 
-    if not stub:
-        lfp_file = os.path.join(session_path, session_name + '.eeg')
-        all_channels = np.fromfile(lfp_file, dtype=np.int16).reshape(-1, 80)
-        all_channels_lfp = all_channels[:, all_shank_channels]
+    reference_lfp_data = all_channels_data[:, lfp_channel]
 
-        data = DataChunkIterator(tqdm(all_channels_lfp, desc='writing lfp data'),
-                                 buffer_size=int(lfp_fs*3600))
-        data = H5DataIO(data, compression='gzip')
-    else:
-        all_channels = np.random.randn(1000, 100)  # use for dev testing for speed
-        data = all_channels
+    lfp_index = np.where(all_shank_channels == lfp_channel)[0][0]
 
-    print('done.')
-
-    print('making ElectricalSeries objects for LFP...', end='', flush=True)
-    all_lfp_electrical_series = ElectricalSeries(
-        'all_lfp', data, all_table_region, conversion=np.nan, rate=lfp_fs,
-        resolution=np.nan, description='lfp signal for all shank electrodes')
-
-    nwbfile.add_acquisition(
-        LFP(name='all_lfp', electrical_series=all_lfp_electrical_series))
-    print('done.')
-
-    electrical_series = ElectricalSeries(
-        'reference_lfp', H5DataIO(all_channels[:, lfp_channel], compression='gzip'),
-        lfp_table_region, conversion=np.nan, rate=lfp_fs, resolution=np.nan,
-        description='signal used as the reference lfp')
-
-    nwbfile.add_acquisition(
-        LFP(name='reference_lfp', electrical_series=electrical_series))
+    ns.write_lfp(nwbfile, reference_lfp_data, lfp_fs, name='reference_lfp',
+                 description='lfp signal for reference electrode', electrode_inds=[lfp_index])
 
     # create epochs corresponding to experiments/environments for the mouse
     task_types = ['OpenFieldPosition_ExtraLarge', 'OpenFieldPosition_New_Curtain',
                   'OpenFieldPosition_New', 'OpenFieldPosition_Old_Curtain',
                   'OpenFieldPosition_Old', 'OpenFieldPosition_Oldlast', 'EightMazePosition']
 
-    module_behavior = nwbfile.create_processing_module(
-        name='behavior', description='description')
+    module_behavior = nwbfile.create_processing_module(name='behavior', description='description')
     nwbfile.add_epoch_column('label', 'name of epoch')
     for label in task_types:
 
@@ -282,9 +240,6 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
         nwbfile.add_unit(global_id=unit_id, cell_type=celltype, shank=shank,
                          spike_times=spike_times)
 
-    module_cellular = nwbfile.create_processing_module(
-        'cellular', description='description')
-
     trialdata_path = os.path.join(session_path, session_name + '__EightMazeRun.mat')
     trials_data = loadmat(trialdata_path)['EightMazeRun']
 
@@ -328,7 +283,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
         'lfp_mod', description='description')
 
     for passband in ('theta', 'gamma'):
-        lfp_fft = filter_lfp(all_channels[:, lfp_channel], np.array(lfp_fs), passband=passband)
+        lfp_fft = filter_lfp(reference_lfp_data, lfp_fs, passband=passband)
         lfp_phase, _ = hilbert_lfp(lfp_fft)
 
         time_series = TimeSeries(name=passband + '_phase',

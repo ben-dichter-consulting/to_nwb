@@ -57,6 +57,7 @@ def get_shank_channels(session_path):
 
     Returns
     -------
+    list(list(int))
 
     """
     fpath_base, fname = os.path.split(session_path)
@@ -104,7 +105,7 @@ def add_position_data(nwbfile, session_path, fs=1250./32.,
         names of column headings
 
     """
-    _, session_name = os.path.split(session_path)
+    session_name = os.path.split(session_path)[1]
     print('warning: time may not be aligned')
     df = pd.read_csv(os.path.join(session_path, session_name + '.whl'),
                      sep='\t', names=names)
@@ -133,7 +134,7 @@ def read_spike_times(session_path, shankn, fs=20000.):
 
     Parameters
     ----------
-    session_path str | path
+    session_path: str | path
     shankn: int
         shank number (1-indexed)
     fs: float
@@ -194,7 +195,6 @@ def get_clusters_single_shank(session_path, shankn, fs=20000.):
 
     """
 
-    session_name = os.path.split(session_path)[1]
     spike_times = read_spike_times(session_path, shankn, fs=fs)
     spike_ids = read_spike_clustering(session_path, shankn)
     df = pd.DataFrame({'id': spike_ids, 'time': spike_times})
@@ -232,9 +232,6 @@ def write_electrode_table(nwbfile, session_path, electrode_positions=None,
     locations: Iterable(str)
     filterings: Iterable(str)
 
-    Returns
-    -------
-
     """
     fpath_base, fname = os.path.split(session_path)
 
@@ -243,15 +240,13 @@ def write_electrode_table(nwbfile, session_path, electrode_positions=None,
     nwbfile.add_electrode_column('electrode_description',
                                  description='description of electrode description???')
 
-    electrode_counter = 0
     device = nwbfile.create_device('device', fname + '.xml')
     for shankn, channels in enumerate(shank_channels):
         shankn += 1
         electrode_group = nwbfile.create_electrode_group(
             name='shank{}'.format(shankn),
             description='shank{} electrodes'.format(shankn),
-            device=device,
-            location='unknown')
+            device=device, location='unknown')
         for channel in channels:
             if electrode_positions is not None:
                 pos = electrode_positions[channel]
@@ -273,22 +268,18 @@ def write_electrode_table(nwbfile, session_path, electrode_positions=None,
             else:
                 filtering = filterings[channel]
 
-            nwbfile.add_electrode(float(pos[0]), float(pos[1]), float(pos[2]),
-                                  imp=imp, location=location, filtering=filtering,
-                                  group=electrode_group, shank=shankn)
-
-            electrode_counter += 1
-
-    return nwbfile
+            nwbfile.add_electrode(
+                float(pos[0]), float(pos[1]), float(pos[2]),
+                imp=imp, location=location, filtering=filtering,
+                group=electrode_group, shank=shankn,
+                electrode_description='channel {} of shank {}, '.format(channel, shankn))
 
 
-def write_lfp(nwbfile, session_path, stub=False):
+def read_lfp(session_path, stub=False):
     """
-    Add LFP from neuroscope to NWB.
 
     Parameters
     ----------
-    nwbfile: pynwb.NWBFile
     session_path: str
     stub: bool, optional
         Default is False. If True, don't read LFP, but instead add a small
@@ -297,44 +288,59 @@ def write_lfp(nwbfile, session_path, stub=False):
 
     Returns
     -------
-
-    nwbfile
+    lfp_fs, all_channels_data
 
     """
+    lfp_fs = get_lfp_sampling_rate(session_path)
+    if stub:
+        all_channels_lfp = np.random.randn(1000, 100)  # use for dev testing for speed
+        return lfp_fs, all_channels_lfp
+
     fpath_base, fname = os.path.split(session_path)
     lfp_filepath = os.path.join(session_path, fname + '.eeg')
 
-    lfp_fs = get_lfp_sampling_rate(session_path)
     shank_channels = get_shank_channels(session_path)
     all_shank_channels = np.concatenate(shank_channels)
 
-    nelecs = len(nwbfile.electrodes)
+    nelecs = len(all_shank_channels)
 
-    all_table_region = nwbfile.create_electrode_table_region(
-        list(range(nelecs)), 'all electrodes')
+    all_channels_data = np.fromfile(lfp_filepath, dtype=np.int16).reshape(-1, nelecs)
 
-    if stub:
-        data = np.random.randn(1000, 100)  # use for dev testing for speed
-    else:
-        all_channels = np.fromfile(lfp_filepath, dtype=np.int16).reshape(-1, nelecs)
-        all_channels_lfp = all_channels[:, all_shank_channels]
+    return lfp_fs, all_channels_data
 
-        data = DataChunkIterator(tqdm(all_channels_lfp, desc='writing lfp data'),
-                                 buffer_size=int(lfp_fs * 3600))
-        data = H5DataIO(data, compression='gzip')
+
+def write_lfp(nwbfile, data, fs, name='LFP', description='local field potential signal', electrode_inds=None):
+    """
+    Add LFP from neuroscope to NWB.
+
+    Parameters
+    ----------
+    nwbfile: pynwb.NWBFile
+    data: array-like
+    fs: float
+    name: str
+    description: str
+    electrode_inds: list(int)
+
+    """
+
+    if electrode_inds is None:
+        electrode_inds = list(range(data.shape[1]))
+
+    table_region = nwbfile.create_electrode_table_region(
+        electrode_inds, 'electrode table reference')
+
+    data = H5DataIO(
+        DataChunkIterator(
+            tqdm(data, desc='writing lfp data'),
+            buffer_size=int(fs * 3600)), compression='gzip')
 
     all_lfp_electrical_series = ElectricalSeries(
-        name='all_lfp',
-        description='lfp signal for all shank electrodes',
-        data=data,
-        electrodes=all_table_region,
-        conversion=np.nan,
-        rate=lfp_fs,
-        resolution=np.nan)
+        name=name, description=description,
+        data=data, electrodes=table_region, conversion=np.nan,
+        rate=fs, resolution=np.nan)
 
-    nwbfile.add_acquisition(LFP(name='all_lfp', electrical_series=all_lfp_electrical_series))
-
-    return nwbfile
+    nwbfile.add_acquisition(LFP(name=name, electrical_series=all_lfp_electrical_series))
 
 
 def write_events(nwbfile, session_path, suffixes=None):
@@ -410,7 +416,8 @@ def write_spike_waveforms(nwbfile, session_path, shankn):
 
     SpikeEventSeries(name='spike_waveforms', data=spks, timestamps=spike_times, electrodes=table_region)
 
-def write_units(nwbfile, session_path):
+
+def add_units(nwbfile, session_path):
     nwbfile.add_unit_column('shank', '1-indexed shank number')
     nwbfile.add_unit_column('cluster_id', '0-indexed id of cluster of shank')
 

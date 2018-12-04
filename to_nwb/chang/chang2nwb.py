@@ -322,7 +322,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
               ecog_format='auto', external_subject=True, include_pitch=False, include_intensity=False,
               speakers=True, mic=True, mini=False, hilb=False, verbose=False,
               imaging_path=None, parse_transcript=False, include_cortical_surfaces=True,
-              include_electrodes=True, include_ekg=True, subject_image_list=None, **kwargs):
+              include_electrodes=True, include_ekg=True, subject_image_list=None, rest_period=None, **kwargs):
     """
 
     Parameters
@@ -368,6 +368,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     include_ekg: bool (optional)
     subject_image_list: list (optional)
         List of paths of images to include
+    rest_period: None | array-like
     kwargs: dict
         passed to pynwb.NWBFile
 
@@ -500,6 +501,9 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
         for row in bad_time:
             nwbfile.add_invalid_time_interval(start_time=row[0], stop_time=row[1],
                                               tags=('ECoG artifact',), timeseries=ecog_ts)
+
+    if rest_period is not None:
+        nwbfile.add_epoch(start_time=rest_period[0], stop_time=rest_period[1])
 
     if hilb:
         data, rate = readhtks(hilbdir)

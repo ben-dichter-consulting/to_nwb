@@ -10,9 +10,6 @@ from pynwb import NWBFile, NWBHDF5IO
 from pynwb.behavior import SpatialSeries, Position
 
 
-#def convert_file1(fpath, session_start_time,
-#                 session_description='simulated MEC and LEC data'):
-
 def get_neuroh5_cell_data(fpath):
 
     with File(fpath, 'r') as f:

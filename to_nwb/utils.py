@@ -69,6 +69,7 @@ def remove_duplicates(li):
     Parameters
     ----------
     li: list
+
     Returns
     -------
     res: list

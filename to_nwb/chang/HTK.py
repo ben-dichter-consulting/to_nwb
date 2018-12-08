@@ -1,6 +1,6 @@
 # This code has been modified from David Moses' original version by Ben Dichter to be stand-alone
 
-#-------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 # Name:        HTK
 # Purpose:     To interact with .htk files
 #
@@ -8,7 +8,7 @@
 #
 # Created:     Dec 10, 2013
 # Copyright:   (c) David Moses 2013
-#-------------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 
 import os
 
@@ -71,6 +71,7 @@ def readHTK(file_path, data_type = 'HTK', big_endian = True,
             'sample_size':    sample_size,
             'parameter_kind': parameter_kind,
             'data':           data}
+
 
 def toHTK(file_data, file_path, data_type = 'HTK', big_endian = True,
           scale_s_rate = False):

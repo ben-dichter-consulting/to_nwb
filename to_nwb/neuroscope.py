@@ -22,22 +22,23 @@ def load_xml(filepath):
     return soup
 
 
-def get_channel_groups(session_path):
+def get_channel_groups(session_path=None, xml_filepath=None):
     """Get the groups of channels that are recorded on each shank from the xml
     file
 
     Parameters
     ----------
     session_path: str
+    xml_filepath: None | str (optional)
 
     Returns
     -------
     list(list)
 
     """
-
-    fpath_base, fname = os.path.split(session_path)
-    xml_filepath = os.path.join(session_path, fname + '.xml')
+    if xml_filepath is None:
+        fpath_base, fname = os.path.split(session_path)
+        xml_filepath = os.path.join(session_path, fname + '.xml')
 
     soup = load_xml(xml_filepath)
 
@@ -48,20 +49,22 @@ def get_channel_groups(session_path):
     return channel_groups
 
 
-def get_shank_channels(session_path):
+def get_shank_channels(session_path=None, xml_filepath=None):
     """Read the channels on the shanks in Neuroscope xml
 
     Parameters
     ----------
     session_path: str
+    xml_filepath: None | str (optional)
 
     Returns
     -------
     list(list(int))
 
     """
-    fpath_base, fname = os.path.split(session_path)
-    xml_filepath = os.path.join(session_path, fname + '.xml')
+    if xml_filepath is None:
+        fpath_base, fname = os.path.split(session_path)
+        xml_filepath = os.path.join(session_path, fname + '.xml')
 
     soup = load_xml(xml_filepath)
 
@@ -71,13 +74,14 @@ def get_shank_channels(session_path):
     return shank_channels
 
 
-def get_lfp_sampling_rate(session_path):
+def get_lfp_sampling_rate(session_path=None, xml_filepath=None):
     """Reads the LFP Sampling Rate from the xml parameter file of the
     Neuroscope format
 
     Parameters
     ----------
     session_path: str
+    xml_filepath: None | str (optional)
 
     Returns
     -------
@@ -85,8 +89,9 @@ def get_lfp_sampling_rate(session_path):
 
     """
 
-    session_name = os.path.split(session_path)[1]
-    xml_filepath = os.path.join(session_path, session_name + '.xml')
+    if xml_filepath is None:
+        session_name = os.path.split(session_path)[1]
+        xml_filepath = os.path.join(session_path, session_name + '.xml')
 
     return float(load_xml(xml_filepath).lfpSamplingRate.string)
 
@@ -299,12 +304,9 @@ def read_lfp(session_path, stub=False):
     fpath_base, fname = os.path.split(session_path)
     lfp_filepath = os.path.join(session_path, fname + '.eeg')
 
-    shank_channels = get_shank_channels(session_path)
-    all_shank_channels = np.concatenate(shank_channels)
+    n_channels = sum(len(x) for x in get_channel_groups(session_path))
 
-    nelecs = len(all_shank_channels)
-
-    all_channels_data = np.fromfile(lfp_filepath, dtype=np.int16).reshape(-1, nelecs)
+    all_channels_data = np.fromfile(lfp_filepath, dtype=np.int16).reshape(-1, n_channels)
 
     return lfp_fs, all_channels_data
 

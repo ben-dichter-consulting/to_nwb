@@ -2,8 +2,12 @@ import os
 import pickle
 import sima
 
+import numpy as np
 
-def get_motion_correction(expt):
+from pynwb import TimeSeries
+
+
+def get_motion_correction(expt, channel):
     fpath = os.path.join(expt.sima_path(), 'sequences.pkl')
 
     with open(fpath, 'rb') as f:
@@ -13,5 +17,6 @@ def get_motion_correction(expt):
 
     while True:
         if 'displacements' in obj:
-            return obj['displacements']
+            data = np.swapaxes(obj['displacements'][..., channel], 1, 2)
+            return TimeSeries(name='motion_correction', data=data, unit='pixels', rate=1 / expt.frame_period())
         obj = obj['base']

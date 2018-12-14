@@ -337,12 +337,14 @@ def write_lfp(nwbfile, data, fs, name='LFP', description='local field potential 
             tqdm(data, desc='writing lfp data'),
             buffer_size=int(fs * 3600)), compression='gzip')
 
-    all_lfp_electrical_series = ElectricalSeries(
+    lfp_electrical_series = ElectricalSeries(
         name=name, description=description,
         data=data, electrodes=table_region, conversion=np.nan,
         rate=fs, resolution=np.nan)
 
-    nwbfile.add_acquisition(LFP(name=name, electrical_series=all_lfp_electrical_series))
+    nwbfile.add_acquisition(LFP(name=name, electrical_series=lfp_electrical_series))
+
+    return lfp_electrical_series
 
 
 def add_lfp(nwbfile, session_path, name='LFP', description='local field potential signal', stub=False):

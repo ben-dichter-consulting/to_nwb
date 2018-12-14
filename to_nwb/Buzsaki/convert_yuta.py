@@ -8,23 +8,25 @@ from scipy.io import loadmat
 from dateutil.parser import parse as dateparse
 import pandas as pd
 
-from pynwb import NWBFile, NWBHDF5IO, TimeSeries
+from pynwb import NWBFile, NWBHDF5IO
 from pynwb.file import Subject, TimeIntervals
 from pynwb.behavior import SpatialSeries, Position
 from pynwb.form.backends.hdf5.h5_utils import H5DataIO
-
+from pynwb.misc import SpectralAnalysis
+from pynwb.core import DynamicTable, VectorData
 
 from to_nwb.utils import find_discontinuities
 import to_nwb.neuroscope as ns
 
 from ephys_analysis.band_analysis import filter_lfp, hilbert_lfp
 
+# value taken from Yuta's spreadsheet
 special_electrode_dict = {'ch_wait': 79, 'ch_arm': 78, 'ch_solL': 76,
                           'ch_solR': 77, 'ch_dig1': 65, 'ch_dig2': 68,
                           'ch_entL': 72, 'ch_entR': 71, 'ch_SsolL': 73,
                           'ch_SsolR': 70}
 
-lfp_channel = 0  # value taken from Yuta's spreadsheet
+lfp_channel = 0
 
 
 def add_special_electrodes(nwbfile, session_path):
@@ -129,6 +131,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     shank_channels = ns.get_shank_channels(session_path)
     all_shank_channels = np.concatenate(shank_channels)
     lfp_data = all_channels_data[:, all_shank_channels]
+    print('writing LFPs...', flush=True)
     ns.write_lfp(nwbfile, lfp_data, lfp_fs, name='all_lfp',
                  description='lfp signal for all shank electrodes')
 
@@ -136,8 +139,8 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
 
     lfp_index = np.where(all_shank_channels == lfp_channel)[0][0]
 
-    ns.write_lfp(nwbfile, reference_lfp_data, lfp_fs, name='reference_lfp',
-                 description='lfp signal for reference electrode', electrode_inds=[lfp_index])
+    reference_lfp_ts = ns.write_lfp(nwbfile, reference_lfp_data, lfp_fs, name='reference_lfp',
+                                    description='lfp signal for reference electrode', electrode_inds=[lfp_index])
 
     # create epochs corresponding to experiments/environments for the mouse
     task_types = ['OpenFieldPosition_ExtraLarge', 'OpenFieldPosition_New_Curtain',
@@ -247,12 +250,17 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     trialdatainfo = [x[0] for x in loadmat(trialdatainfo_path)['EightMazeRunInfo'][0]]
 
     features = trialdatainfo[:7]
-    features[:2] = 'start_time', 'stop_time'
-    [nwbfile.add_trial_column(x, 'description') for x in features[2:]]
+    features[:2] = 'start_time', 'stop_time',
+    [nwbfile.add_trial_column(x, 'description') for x in features[4:] + ['condition']]
 
     for trial_data in trials_data:
-        nwbfile.add_trial(**{lab: dat for lab, dat in zip(features, trial_data[:7])})
-
+        if trial_data[3]:
+            cond = 'run_left'
+        else:
+            cond = 'run_right'
+        nwbfile.add_trial(start_time=trial_data[0], stop_time=trial_data[1], condition=cond,
+                          error_run=trial_data[4], stim_run=trial_data[5], both_visit=trial_data[6])
+    """
     mono_syn_fpath = os.path.join(session_path, session_name+'-MonoSynConvClick.mat')
 
     matin = loadmat(mono_syn_fpath)
@@ -265,6 +273,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     #inh_obj = CatCellInfo(name='inhibitory_connections',
     #                      indices_values=[], cell_index=inh[:, 0] - 1, indices=inh[:, 1] - 1)
     #module_cellular.add_container(inh_obj)
+    """
 
     sleep_state_fpath = os.path.join(session_path, session_name+'--StatePeriod.mat')
     matin = loadmat(sleep_state_fpath)['StatePeriod']
@@ -280,20 +289,32 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
 
     # compute filtered LFP
     module_lfp = nwbfile.create_processing_module(
-        'lfp_mod', description='description')
+        'lfp', description='description')
 
+    all_lfp_phases = []
     for passband in ('theta', 'gamma'):
         lfp_fft = filter_lfp(reference_lfp_data, lfp_fs, passband=passband)
         lfp_phase, _ = hilbert_lfp(lfp_fft)
+        all_lfp_phases.append(lfp_phase[:, np.newaxis])
+    data = np.dstack(all_lfp_phases)
 
-        time_series = TimeSeries(name=passband + '_phase',
-                                 data=lfp_phase,
-                                 rate=lfp_fs,
-                                 unit='radians')
+    bands = DynamicTable(name='bands', description='band info for LFPSpectralAnalysis', columns=[
+        VectorData(name='band_name', description='name of bands', data=['theta', 'gamma']),
+        VectorData(name='band_limits', description='low and high cutoffs in Hz', data=[(4, 10), (30, 80)])
+    ])
 
-        module_lfp.add_container(time_series)
+    spec_analysis = SpectralAnalysis(name='LFPSpectralAnalysis',
+                                     description='Theta and Gamma phase for reference LFP',
+                                     data=data, rate=lfp_fs,
+                                     source_timeseries=reference_lfp_ts,
+                                     metric='phase', unit='radians', bands=bands)
 
-    out_fname = session_path + '.nwb'
+    module_lfp.add_container(spec_analysis)
+
+    if stub:
+        out_fname = session_path + '_stub.nwb'
+    else:
+        out_fname = session_path + '.nwb'
 
     print('writing NWB file...', end='', flush=True)
     with NWBHDF5IO(out_fname, mode='w') as io:

@@ -36,7 +36,7 @@ aux_data = np.fromfile(data_fpaths['auxiliary'], dtype=np.int16).reshape(ntt, -1
 nwbfile = NWBFile(session_start_time=session_start_time, identifier=this_dir,
                   session_description='unknown')
 
-device = nwbfile.create_device(name='all_channels_device')
+device = nwbfile.create_device(name='Neuronexus Probe Buzsaki32/H32Package')
 group = nwbfile.create_electrode_group(name='all_channels_group',
                                        description='all channels',
                                        device=device,

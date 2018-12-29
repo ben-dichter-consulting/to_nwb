@@ -35,7 +35,7 @@ manager = get_manager()
 
 raw_htk_path = '/data_store0/human/HTK_raw'
 IMAGING_PATH = '/data_store2/imaging/subjects'
-hilb_dir = '/userdata/bdichter/data/from_jesse/'
+hilb_dir = '/userdata/bdichter/from_jesse/'
 
 
 """
@@ -516,7 +516,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
             decomp_series = DecompositionSeries(
                 name='LFPDecompositionSeries',
                 description='Gaussian band Hilbert transform',
-                data=data, rate=400.,
+                data=H5DataIO(data, compression='gzip'), rate=400.,
                 source_timeseries=ecog_ts, metric='amplitude')
 
             for band_mean, band_stdev in zip(filter_center, filter_sigma):

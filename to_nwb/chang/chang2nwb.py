@@ -17,6 +17,7 @@ from pynwb.behavior import BehavioralTimeSeries
 from pynwb.form.backends.hdf5 import H5DataIO
 from pynwb.image import RGBImage, RGBAImage, GrayscaleImage
 from pynwb.base import Images
+from pynwb.misc import DecompositionSeries
 from pytz import timezone
 from scipy.io import loadmat
 from scipy.io.wavfile import read as wavread
@@ -25,7 +26,6 @@ from tqdm import tqdm
 
 from .HTK import readHTK
 from .transcripts import parse, make_df
-from ..extensions.time_frequency import HilbertSeries
 from ..utils import remove_duplicates
 from ..tdt import load_wavs, load_anin
 
@@ -35,6 +35,7 @@ manager = get_manager()
 
 raw_htk_path = '/data_store0/human/HTK_raw'
 IMAGING_PATH = '/data_store2/imaging/subjects'
+hilb_dir = '/userdata/bdichter/data/from_jesse/'
 
 
 """
@@ -141,7 +142,7 @@ def gen_htk_num(i, n=64):
     ----------
     i: int
         zero-indexed channel number
-    n: intL
+    n: int
         number of channels per wav
 
     Returns
@@ -506,17 +507,33 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
         nwbfile.add_epoch(start_time=rest_period[0], stop_time=rest_period[1])
 
     if hilb:
-        data, rate = readhtks(hilbdir)
+        block_hilb_path = os.path.join(hilb_dir, subject_id, blockname, blockname + '_AA.h5')
+        with File(block_hilb_path, 'r') as file:
+            data = file['X'][:].T
+            filter_center = file['filter_center'][:]
+            filter_sigma = file['filter_sigma'][:]
+
+            decomp_series = DecompositionSeries(
+                name='LFPDecompositionSeries',
+                description='Gaussian band Hilbert transform',
+                data=data, rate=400.,
+                source_timeseries=ecog_ts, metric='amplitude')
+
+            for band_mean, band_stdev in zip(filter_center, filter_sigma):
+                decomp_series.add_band(band_mean=band_mean, band_stdev=band_stdev)
+
+            hilb_mod = nwbfile.create_processing_module(
+                name='hilbert', description='holds hilbert analysis results')
+            hilb_mod.add_container(decomp_series)
+
+        #data, rate = readhtks(hilbdir)
         # you must have 1 or more of the following:
         #   data (analytic amplitude),
         #   real_data,
         #   imaginary_data,
-        #   phase_data
-        hs = HilbertSeries(name='hilbert_series', filter_centers=[1., 2., 3.],
-                           filter_sigmas=[1., 2., 3.], data=data, rate=rate, electrodes=ecog_elecs)
-
-        hilb_mod = nwbfile.create_processing_module(name='hilbert', description='na')
-        hilb_mod.add_container(hs)
+        ##   phase_data
+        #hs = HilbertSeries(name='hilbert_series', filter_centers=[1., 2., 3.],
+        #                   filter_sigmas=[1., 2., 3.], data=data, rate=rate, electrodes=ecog_elecs)
 
     subject = ECoGSubject(subject_id=subject_id)
 

@@ -24,6 +24,8 @@ from scipy.io.wavfile import read as wavread
 from scipy.misc import imread
 from tqdm import tqdm
 
+from pynwb.form.data_utils import DataChunkIterator
+
 from .HTK import readHTK
 from .transcripts import parse, make_df
 from ..utils import remove_duplicates
@@ -508,23 +510,29 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
 
     if hilb:
         block_hilb_path = os.path.join(hilb_dir, subject_id, blockname, blockname + '_AA.h5')
-        with File(block_hilb_path, 'r') as file:
-            data = file['X'][:].T
-            filter_center = file['filter_center'][:]
-            filter_sigma = file['filter_sigma'][:]
+        file = File(block_hilb_path, 'r')
 
-            decomp_series = DecompositionSeries(
-                name='LFPDecompositionSeries',
-                description='Gaussian band Hilbert transform',
-                data=H5DataIO(data, compression='gzip'), rate=400.,
-                source_timeseries=ecog_ts, metric='amplitude')
+        data = file['X'][:].T
+        filter_center = file['filter_center'][:]
+        filter_sigma = file['filter_sigma'][:]
 
-            for band_mean, band_stdev in zip(filter_center, filter_sigma):
-                decomp_series.add_band(band_mean=band_mean, band_stdev=band_stdev)
+        data = H5DataIO(
+            DataChunkIterator(
+                tqdm(data, desc='writing hilbert data'),
+                buffer_size=400 * 20), compression='gzip')
 
-            hilb_mod = nwbfile.create_processing_module(
-                name='hilbert', description='holds hilbert analysis results')
-            hilb_mod.add_container(decomp_series)
+        decomp_series = DecompositionSeries(
+            name='LFPDecompositionSeries',
+            description='Gaussian band Hilbert transform',
+            data=data, rate=400.,
+            source_timeseries=ecog_ts, metric='amplitude')
+
+        for band_mean, band_stdev in zip(filter_center, filter_sigma):
+            decomp_series.add_band(band_mean=band_mean, band_stdev=band_stdev)
+
+        hilb_mod = nwbfile.create_processing_module(
+            name='hilbert', description='holds hilbert analysis results')
+        hilb_mod.add_container(decomp_series)
 
         #data, rate = readhtks(hilbdir)
         # you must have 1 or more of the following:
@@ -598,6 +606,9 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
 
     if external_subject:
         subj_read_io.close()
+
+    if hilb:
+        file.close()
 
     # read check
     with NWBHDF5IO(outpath, manager=manager, mode='r') as io:

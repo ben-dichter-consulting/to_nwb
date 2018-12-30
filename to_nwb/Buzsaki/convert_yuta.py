@@ -1,4 +1,5 @@
 from __future__ import print_function
+import sys
 
 import os
 
@@ -12,8 +13,7 @@ from pynwb import NWBFile, NWBHDF5IO
 from pynwb.file import Subject, TimeIntervals
 from pynwb.behavior import SpatialSeries, Position
 from pynwb.form.backends.hdf5.h5_utils import H5DataIO
-from pynwb.misc import SpectralAnalysis
-from pynwb.core import DynamicTable, VectorData
+from pynwb.misc import DecompositionSeries
 
 from to_nwb.utils import find_discontinuities
 import to_nwb.neuroscope as ns
@@ -288,28 +288,25 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     module_behavior.add_container(table)
 
     # compute filtered LFP
-    module_lfp = nwbfile.create_processing_module(
-        'lfp', description='description')
-
+    module_lfp = nwbfile.create_processing_module('lfp', description='description')
+    print('filtering LFP...', end='', flush=True)
     all_lfp_phases = []
     for passband in ('theta', 'gamma'):
         lfp_fft = filter_lfp(reference_lfp_data, lfp_fs, passband=passband)
         lfp_phase, _ = hilbert_lfp(lfp_fft)
         all_lfp_phases.append(lfp_phase[:, np.newaxis])
     data = np.dstack(all_lfp_phases)
+    print('done.', flush=True)
 
-    bands = DynamicTable(name='bands', description='band info for LFPSpectralAnalysis', columns=[
-        VectorData(name='band_name', description='name of bands', data=['theta', 'gamma']),
-        VectorData(name='band_limits', description='low and high cutoffs in Hz', data=[(4, 10), (30, 80)])
-    ])
+    decomp_series = DecompositionSeries(name='LFPSpectralAnalysis',
+                                        description='Theta and Gamma phase for reference LFP',
+                                        data=data, rate=lfp_fs,
+                                        source_timeseries=reference_lfp_ts,
+                                        metric='phase', unit='radians')
+    decomp_series.add_band(band_name='theta', band_limits=(4, 10))
+    decomp_series.add_band(band_name='gamma', band_limits=(30, 80))
 
-    spec_analysis = SpectralAnalysis(name='LFPSpectralAnalysis',
-                                     description='Theta and Gamma phase for reference LFP',
-                                     data=data, rate=lfp_fs,
-                                     source_timeseries=reference_lfp_ts,
-                                     metric='phase', unit='radians', bands=bands)
-
-    module_lfp.add_container(spec_analysis)
+    module_lfp.add_container(decomp_series)
 
     if stub:
         out_fname = session_path + '_stub.nwb'
@@ -326,3 +323,11 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     with NWBHDF5IO(out_fname, mode='r') as io:
         io.read()
     print('done.')
+
+
+def main(argv):
+    yuta2nwb()
+
+
+if __name__ == "__main__":
+    main(sys.argv[1:])

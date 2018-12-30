@@ -320,9 +320,9 @@ def add_electrodes(nwbfile, elec_metadata_file, bad_elecs_inds):
     write_electrodes(nwbfile, elec_grp_df, coord, bad_elecs_inds)
 
 
-def iter_cols(aa):
-    for i in range(aa.shape[1]):
-        yield aa[:, i]
+def transpose_iter(aa):
+    for i in range(aa.shape[-1]):
+        yield aa[..., i].T
 
 
 def chang2nwb(blockpath, outpath=None, session_start_time=None,
@@ -517,7 +517,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
         block_hilb_path = os.path.join(hilb_dir, subject_id, blockname, blockname + '_AA.h5')
         file = File(block_hilb_path, 'r')
 
-        data = iter_cols(file['X'])  # transposes data during iterative write
+        data = transpose_iter(file['X'])  # transposes data during iterative write
         filter_center = file['filter_center'][:]
         filter_sigma = file['filter_sigma'][:]
 

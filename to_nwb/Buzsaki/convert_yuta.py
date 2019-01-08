@@ -26,7 +26,14 @@ special_electrode_dict = {'ch_wait': 79, 'ch_arm': 78, 'ch_solL': 76,
                           'ch_entL': 72, 'ch_entR': 71, 'ch_SsolL': 73,
                           'ch_SsolR': 70}
 
-lfp_channel = 0
+
+def get_reference_elec(exp_sheet_path, date):
+    df1 = pd.read_excel(exp_sheet_path, header=1, sheet_name=1)
+    take = df1['implanted'].values == date
+    df2 = pd.read_excel(exp_sheet_path, header=3, sheet_name=1)
+    out = df2['h'][take[2:]].values[0]
+
+    return out
 
 
 def add_special_electrodes(nwbfile, session_path):
@@ -94,6 +101,8 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
         subject_xls = os.path.join(subject_path, 'YM' + session_name[9:11] + ' exp_sheet.xlsx')
 
     session_start_time = dateparse(date_text, yearfirst=True)
+
+    lfp_channel = get_reference_elec(subject_xls, session_start_time)
 
     df = pd.read_excel(subject_xls)
 

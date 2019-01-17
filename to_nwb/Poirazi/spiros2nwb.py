@@ -10,6 +10,9 @@ from pynwb import NWBFile, NWBHDF5IO, TimeSeries
 from tqdm import tqdm
 
 run_dir = '/Users/bendichter/Desktop/Poirazi/data/DATA_Ben'
+session_start_time = datetime(2017, 4, 15, 12, tzinfo=tzlocal())
+description = 'description of session'
+identifier = 'session_id'
 
 
 def natural_key(text):
@@ -18,10 +21,9 @@ def natural_key(text):
 
 
 # setup NWB file
-
-nwbfile = NWBFile(session_description='description of sesssion',
-                  identifier='session_id',
-                  session_start_time=datetime(2017, 4, 15, 12, tzinfo=tzlocal()))
+nwbfile = NWBFile(session_description=description,
+                  identifier=identifier,
+                  session_start_time=session_start_time)
 nwbfile.add_unit_column('cell_type', 'cell type')
 nwbfile.add_unit_column('cell_type_id', 'integer index within each cell type')
 

@@ -21,13 +21,16 @@ def natural_key(text):
 
 
 # setup NWB file
+
 nwbfile = NWBFile(session_description=description,
                   identifier=identifier,
                   session_start_time=session_start_time)
 nwbfile.add_unit_column('cell_type', 'cell type')
 nwbfile.add_unit_column('cell_type_id', 'integer index within each cell type')
 
+
 # convert continuous data (1 compartment per cell)
+
 mp_data = []
 for dat_file in tqdm(sorted(glob(os.path.join(run_dir, '*dat')), key=natural_key),
                      desc='reading .dat files'):
@@ -35,6 +38,7 @@ for dat_file in tqdm(sorted(glob(os.path.join(run_dir, '*dat')), key=natural_key
 mp_data = np.column_stack(mp_data)
 ts = TimeSeries('membrane_potential', mp_data, unit='mV', rate=10000.)
 nwbfile.add_acquisition(ts)
+
 
 # convert spike data
 
@@ -49,6 +53,9 @@ for spk_file in sorted(glob(os.path.join(run_dir, 'spiketimes*'))):
 
 print(nwbfile.units['cell_type'].data)
 print(nwbfile.units.get_unit_spike_times(21))
+
+
+# write NWB file
 
 with NWBHDF5IO(run_dir + '.nwb', 'w') as io:
     io.write(nwbfile)

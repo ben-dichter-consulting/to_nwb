@@ -1,3 +1,5 @@
+import re
+
 import numpy as np
 
 
@@ -79,3 +81,7 @@ def remove_duplicates(li):
         if e not in res:
             res.append(e)
     return res
+
+def natural_key(text):
+    # Key used for natural ordering: orders files correctly even if numbers are not zero-padded
+    return [int(c) if c.isdigit() else c for c in re.split('(\d+)', text)]

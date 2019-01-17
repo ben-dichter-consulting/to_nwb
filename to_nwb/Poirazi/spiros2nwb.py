@@ -1,13 +1,15 @@
 import os
-from glob import glob
 import pickle
-from pynwb import NWBFile, NWBHDF5IO, TimeSeries
-from datetime import datetime
-from dateutil.tz import tzlocal
 import re
-from tqdm import tqdm
+from datetime import datetime
+from glob import glob
 
 import numpy as np
+from dateutil.tz import tzlocal
+from pynwb import NWBFile, NWBHDF5IO, TimeSeries
+from tqdm import tqdm
+
+run_dir = '/Users/bendichter/Desktop/Poirazi/data/DATA_Ben'
 
 
 def natural_key(text):
@@ -16,7 +18,6 @@ def natural_key(text):
 
 
 # setup NWB file
-run_dir = '/Users/bendichter/Desktop/Poirazi/data/DATA_Ben'
 
 nwbfile = NWBFile(session_description='description of sesssion',
                   identifier='session_id',

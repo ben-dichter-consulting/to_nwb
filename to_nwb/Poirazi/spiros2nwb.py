@@ -9,7 +9,11 @@ from dateutil.tz import tzlocal
 from pynwb import NWBFile, NWBHDF5IO, TimeSeries
 from tqdm import tqdm
 
-from to_nwb.utils import natural_key
+
+def natural_key(text):
+    # Key used for natural ordering: orders files correctly even if numbers are not zero-padded
+    return [int(c) if c.isdigit() else c for c in re.split('(\d+)', text)]
+
 
 run_dir = '/Users/bendichter/Desktop/Poirazi/data/DATA_Ben'
 session_start_time = datetime(2017, 4, 15, 12, tzinfo=tzlocal())

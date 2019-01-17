@@ -3,6 +3,7 @@ import pickle
 from datetime import datetime
 from glob import glob
 
+import matplotlib.pyplot as plt
 import numpy as np
 from dateutil.tz import tzlocal
 from pynwb import NWBFile, NWBHDF5IO, TimeSeries
@@ -55,3 +56,35 @@ print(nwbfile.units.get_unit_spike_times(21))
 
 with NWBHDF5IO(run_dir + '.nwb', 'w') as io:
     io.write(nwbfile)
+
+# access data
+
+read_io = NWBHDF5IO(run_dir + '.nwb', 'r')
+nwbfile = read_io.read()
+
+
+# get cell types
+print(nwbfile.units['cell_type'].data)
+
+# get spike times for one cell (in seconds)
+print(nwbfile.units.get_unit_spike_times(21))
+
+# read all data from 1st cell:
+data = nwbfile.acquisition['membrane_potential'].data[:, 0]
+unit = nwbfile.acquisition['membrane_potential'].unit
+rate = nwbfile.acquisition['membrane_potential'].rate
+plt.plot(np.arange(len(data))/rate, data)
+plt.ylabel(unit)
+plt.xlabel('time (s)')
+
+
+# data is identical to old file
+dat_file = sorted(glob(os.path.join(run_dir, '*dat')), key=natural_key)[0]
+data2 = np.loadtxt(dat_file)
+plt.plot(data)
+
+print('data is equal: ' + str(np.all(data2 == data)))
+
+
+# to read all data into memory (this takes 2 minutes reading the .dat files on my computer)
+all_membrane_potential_data = nwbfile.acquisition['membrane_potential'].data[:]

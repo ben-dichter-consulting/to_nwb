@@ -8,6 +8,7 @@ import numpy as np
 from dateutil.tz import tzlocal
 from pynwb import NWBFile, NWBHDF5IO, TimeSeries
 from tqdm import tqdm
+from pynwb.form.backends.hdf5.h5_utils import H5DataIO
 
 
 def natural_key(text):
@@ -19,6 +20,7 @@ run_dir = '/Users/bendichter/Desktop/Poirazi/data/DATA_Ben'
 session_start_time = datetime(2017, 4, 15, 12, tzinfo=tzlocal())
 description = 'description of session'
 identifier = 'session_id'
+COMPRESS = True
 
 
 # setup NWB file
@@ -37,6 +39,8 @@ for dat_file in tqdm(sorted(glob(os.path.join(run_dir, '*dat')), key=natural_key
                      desc='reading .dat files'):
         mp_data.append(np.loadtxt(dat_file))
 mp_data = np.column_stack(mp_data)
+if COMPRESS:
+    mp_data = H5DataIO(mp_data, compression='gzip')
 ts = TimeSeries('membrane_potential', mp_data, unit='mV', rate=10000.)
 nwbfile.add_acquisition(ts)
 

@@ -49,6 +49,29 @@ def get_channel_groups(session_path=None, xml_filepath=None):
     return channel_groups
 
 
+def check_module(nwbfile, name, description=None):
+    """Check if processing module exists. If not, create it. Then return module
+
+    Parameters
+    ----------
+    nwbfile: pynwb.NWBFile
+    name: str
+    description: str | None (optional)
+
+    Returns
+    -------
+    pynwb.module
+
+    """
+
+    if name in nwbfile.modules:
+        return nwbfile.modules[name]
+    else:
+        if description is None:
+            description = name
+        return nwbfile.create_processing_module(name, description)
+
+
 def get_shank_channels(session_path=None, xml_filepath=None):
     """Read the channels on the shanks in Neuroscope xml
 
@@ -313,7 +336,7 @@ def read_lfp(session_path, stub=False):
 
 def write_lfp(nwbfile, data, fs, name='LFP', description='local field potential signal', electrode_inds=None):
     """
-    Add LFP from neuroscope to NWB.
+    Add LFP from neuroscope to a "ecephys" processing module of an NWBFile
 
     Parameters
     ----------
@@ -323,6 +346,10 @@ def write_lfp(nwbfile, data, fs, name='LFP', description='local field potential 
     name: str
     description: str
     electrode_inds: list(int)
+
+    Returns
+    -------
+    LFP ElectricalSeries
 
     """
 
@@ -342,7 +369,13 @@ def write_lfp(nwbfile, data, fs, name='LFP', description='local field potential 
         data=data, electrodes=table_region, conversion=np.nan,
         rate=fs, resolution=np.nan)
 
-    nwbfile.add_acquisition(LFP(name=name, electrical_series=lfp_electrical_series))
+    ecephys_mod = check_module(
+        nwbfile, 'ecephys', 'intermediate data from extracellular electrophysiology recordings, e.g. LFP')
+
+    if 'LFP' not in ecephys_mod.data_interfaces:
+        ecephys_mod.add_data_interface(LFP(name='LFP'))
+
+    ecephys_mod.data_interfaces['LFP'].add_electrical_series(lfp_electrical_series)
 
     return lfp_electrical_series
 
@@ -393,8 +426,7 @@ def write_events(nwbfile, session_path, suffixes=None):
     else:
         evt_files = [os.path.join(session_path, session_name + s)
                      for s in suffixes]
-    ann_mod = nwbfile.create_processing_module(
-        'annotations', description='evt files')
+    behavior_mod = check_module(nwbfile, 'behavior')
     for evt_file in evt_files:
         name = evt_file[-3:]
         df = pd.read_csv(evt_file, sep='\t', names=('time', 'desc'))
@@ -402,7 +434,7 @@ def write_events(nwbfile, session_path, suffixes=None):
         data = df['desc'].values
         annotation_series = AnnotationSeries(
             name=name, data=data, timestamps=timestamps)
-        ann_mod.add_container(annotation_series)
+        behavior_mod.add_data_interface(annotation_series)
 
     return nwbfile
 

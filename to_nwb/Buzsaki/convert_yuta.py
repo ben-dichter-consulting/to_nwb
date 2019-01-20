@@ -27,10 +27,7 @@ special_electrode_dict = {'ch_wait': 79, 'ch_arm': 78, 'ch_solL': 76,
 
 def get_reference_elec(exp_sheet_path, date):
     df1 = pd.read_excel(exp_sheet_path, header=1, sheet_name=1)
-    try:
-        take = df1['implanted'].values == date
-    except:
-        import pdb; pdb.set_trace()
+    take = df1['implanted'].values == date
     df2 = pd.read_excel(exp_sheet_path, header=3, sheet_name=1)
     out = df2['h'][take[2:]].values[0]
 
@@ -91,7 +88,7 @@ def parse_states(fpath):
 
 
 def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/YutaMouse41/YutaMouse41-150903',
-             subject_xls=None, stub=True):
+             subject_xls=None, stub=False):
 
     subject_path, session_name = os.path.split(session_path)
     fpath_base = os.path.split(subject_path)[0]

@@ -1,24 +1,22 @@
 from __future__ import print_function
-import sys
 
 import os
-
+import sys
 from datetime import datetime
-import numpy as np
-from scipy.io import loadmat
-from dateutil.parser import parse as dateparse
-import pandas as pd
 
+import numpy as np
+import pandas as pd
+from dateutil.parser import parse as dateparse
+from ephys_analysis.band_analysis import filter_lfp, hilbert_lfp
 from pynwb import NWBFile, NWBHDF5IO
-from pynwb.file import Subject, TimeIntervals
 from pynwb.behavior import SpatialSeries, Position
+from pynwb.file import Subject, TimeIntervals
 from pynwb.form.backends.hdf5.h5_utils import H5DataIO
 from pynwb.misc import DecompositionSeries
+from scipy.io import loadmat
 
-from to_nwb.utils import find_discontinuities
 import to_nwb.neuroscope as ns
-
-from ephys_analysis.band_analysis import filter_lfp, hilbert_lfp
+from to_nwb.utils import find_discontinuities
 
 # value taken from Yuta's spreadsheet
 special_electrode_dict = {'ch_wait': 79, 'ch_arm': 78, 'ch_solL': 76,
@@ -90,7 +88,7 @@ def parse_states(fpath):
 
 
 def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/YutaMouse41/YutaMouse41-150903',
-             subject_xls=None, stub=False):
+             subject_xls=None, stub=True):
 
     subject_path, session_name = os.path.split(session_path)
     fpath_base = os.path.split(subject_path)[0]
@@ -297,7 +295,6 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     module_behavior.add_container(table)
 
     # compute filtered LFP
-    module_lfp = nwbfile.create_processing_module('lfp', description='description')
     print('filtering LFP...', end='', flush=True)
     all_lfp_phases = []
     for passband in ('theta', 'gamma'):
@@ -315,7 +312,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     decomp_series.add_band(band_name='theta', band_limits=(4, 10))
     decomp_series.add_band(band_name='gamma', band_limits=(30, 80))
 
-    module_lfp.add_container(decomp_series)
+    nwbfile.modules['ecephys'].add_data_interface(decomp_series)
 
     if stub:
         out_fname = session_path + '_stub.nwb'

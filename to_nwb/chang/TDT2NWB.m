@@ -7,32 +7,34 @@ hilb_hg_path = '/Users/bendichter/Desktop/Chang/data/EC125/EC125_B22/HilbAA_70to
 
 nwb_path = fullfile(basepath, [blockname '.nwb']);
 %%
-tdt = TDTbin2mat(blockpath);
+tdt = contrib.tdt.TDTbin2mat(blockpath);
 
 %%
 date = datevec([tdt.info.date tdt.info.utcStartTime]);
 
-file = nwbfile( ...
-    'source', blockpath, ...
-    'session_description', 'a test NWB File', ...
+session_start_time = datetime(date,'Format','yyyy-MM-dd''T''HH:mm:SSZZ',...
+    'TimeZone','local');
+
+file = nwbfile('session_description', 'a test NWB File', ...
     'identifier', blockname, ...
-    'session_start_time', datestr(date, 'yyyy-mm-dd HH:MM:SS'), ...
-    'file_create_date', datestr(now, 'yyyy-mm-dd HH:MM:SS'));
+    'session_start_time', session_start_time);
 %% Electrode Table
 
 [file, ecog_channels] = elecs2ElectrodeTable(file, elecspath);
 
-x = height(file.general_extracellular_ephys.get('electrodes').data);
-rv = types.untyped.RegionView('/general/extracellular_ephys/electrodes',...
-    {[1 x]});
+x = length(file.general_extracellular_ephys_electrodes.id.data);
 
-etr = types.core.ElectrodeTableRegion('data', rv);
+ov = types.untyped.ObjectView('/general/extracellular_ephys/electrodes');
+
+electrode_table_region = types.core.DynamicTableRegion('table', ov, ...
+    'description', 'all electrodes',...
+    'data', [1 x]');
 
 %% ECoG
 
 stream_names = fieldnames(tdt.streams);
 
-ecog_stream_names = sort(stream_names(contains(stream_names,'Wav')));
+ecog_stream_names = sort(stream_names(contains(stream_names, 'Wav')));
 
 Data = [];
 for i = 1:length(ecog_stream_names)
@@ -41,14 +43,16 @@ for i = 1:length(ecog_stream_names)
 end
 Data = Data(:, ecog_channels);
 
-es = types.core.ElectricalSeries('source', blockpath,...
-    'starting_time',stream.startTime,...
-    'starting_time_rate',stream.fs,...
+es = types.core.ElectricalSeries('starting_time', stream.startTime,...
+    'starting_time_rate', stream.fs,...
     'data',Data',...
-    'electrodes', etr,...
-    'data_unit','V');
+    'electrodes', electrode_table_region,...
+    'data_unit', 'V');
 
 file.acquisition.set('ECoG', es);
+
+
+ECoG_soft_link = types.untyped.SoftLink('/aquisition/ECoG');
 
 
 %% ANIN
@@ -58,8 +62,7 @@ stream = tdt.streams.ANIN;
 labels = {'microphone', 'speaker1', 'speaker2', 'anin4'};
 
 for i = 1:length(labels)
-    ts = types.core.TimeSeries('source', blockpath,...
-        'starting_time',stream.startTime,...
+    ts = types.core.TimeSeries('starting_time',stream.startTime,...
         'starting_time_rate',stream.fs,...
         'data',stream.data(i,:)',...
         'data_unit','V?');
@@ -87,8 +90,7 @@ for i = 1:length(mesh_file_list)
     else
         keyboard
     end
-    surf = types.ecog.Surface('source', mesh_file, ...
-        'faces', faces, 'vertices', vertices);
+    surf = types.ecog.Surface('faces', faces', 'vertices', vertices');
     surf_name = mesh_file(find(mesh_file == '_', 1)+1 : end-9);
     cortical_surfaces.surface.set(surf_name, surf);
 end
@@ -98,9 +100,7 @@ file.acquisition.set('CorticalSurfaces', cortical_surfaces);
 
 %% Hilbert AA
 % generateExtension('/Users/bendichter/dev/to_nwb/to_nwb/extensions/time_frequency/time_frequency.namespace.yaml');
-hilbert = types.core.ProcessingModule( ...
-        'source', 'a source for a ProcessingModule', ...
-        'description', 'a module');
+hilbert = types.core.ProcessingModule('description', 'ecephys module');
     
 %%
 
@@ -113,15 +113,19 @@ filter_centers = [70.66172888, 78.01687387,  86.13761233, 95.1036345 , ...
 filter_sigmas = [3.43753263, 3.61201023, 3.79534373, 3.98798262, ...
     4.19039921, 4.40308979, 4.62657583, 4.86140527];
 
-hilb_series = types.time_frequency.HilbertSeries(...
-    'source', 'source',...
-    'filter_centers', filter_centers, ...
-    'filter_sigmas', filter_sigmas, ...
+bands_tbl = table(filter_centers', filter_sigmas', 'VariableNames', {'band_mean', 'filter_stdev'});
+
+bands = util.table2nwb(bands_tbl, 'filter bands');
+
+hilb_series = types.core.DecompositionSeries(...
     'data', data, ...
-    'electrodes', etr);
+    'bands', bands, ...
+    'metric', 'analytic amplitude', ...
+    'data_unit', 'no units',...
+    'source_timeseries', ECoG_soft_link);
     
-hilbert.nwbdatainterface.set('HilbertAA',hilb_series);  
-file.processing.set('hilbert', hilbert);
+ecephys_mod.nwbdatainterface.set('HilbertAA',hilb_series);
+file.processing.set('ecephys', ecephys_mod);
 
 
 %% write file

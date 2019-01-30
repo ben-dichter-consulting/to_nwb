@@ -265,8 +265,8 @@ def write_electrode_table(nwbfile, session_path, electrode_positions=None,
 
     shank_channels = get_shank_channels(session_path)
     nwbfile.add_electrode_column('shank', '1-indexed shank numbers')
-    nwbfile.add_electrode_column('electrode_description',
-                                 description='description of electrode description???')
+    nwbfile.add_electrode_column('shank_channel', '1-indexed channel within a shank')
+    nwbfile.add_electrode_column('amp_channel_id', 'order in which the channels were plugged into amp')
 
     device = nwbfile.create_device('device', fname + '.xml')
     for shankn, channels in enumerate(shank_channels):
@@ -275,7 +275,7 @@ def write_electrode_table(nwbfile, session_path, electrode_positions=None,
             name='shank{}'.format(shankn),
             description='shank{} electrodes'.format(shankn),
             device=device, location='unknown')
-        for channel in channels:
+        for shank_channel, channel in enumerate(channels):
             if electrode_positions is not None:
                 pos = electrode_positions[channel]
             else:
@@ -299,8 +299,8 @@ def write_electrode_table(nwbfile, session_path, electrode_positions=None,
             nwbfile.add_electrode(
                 float(pos[0]), float(pos[1]), float(pos[2]),
                 imp=imp, location=location, filtering=filtering,
-                group=electrode_group, shank=shankn,
-                electrode_description='channel {} of shank {}, '.format(channel, shankn))
+                group=electrode_group, shank=shankn, amp_channel_id=channel,
+                shank_channel=shank_channel)
 
 
 def read_lfp(session_path, stub=False):
@@ -483,6 +483,7 @@ def add_units(nwbfile, session_path):
     for shankn in range(len(channel_groups)):
         df = get_clusters_single_shank(session_path, shankn + 1)
         for cluster_id, idf in df.groupby('id'):
+            import pdb; pdb.set_trace()
             nwbfile.add_unit(shank=shankn + 1, spike_times=idf['time'].values,
                              cluster_id=cluster_id)
 

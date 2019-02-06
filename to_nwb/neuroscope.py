@@ -402,7 +402,7 @@ def add_lfp(nwbfile, session_path, name='LFP', description='local field potentia
     write_lfp(nwbfile, data[:, all_shank_channels], fs, name, description)
 
 
-def write_events(nwbfile, session_path, suffixes=None):
+def write_events(nwbfile, session_path, suffixes=None, module=None):
     """
 
     Parameters
@@ -411,6 +411,7 @@ def write_events(nwbfile, session_path, suffixes=None):
     session_path: str
     suffixes: Iterable(str), optional
         The 3-letter names for the events to write. If None, detect all in session_path
+    module: pynwb.processing_module
 
     Returns
     -------
@@ -426,15 +427,20 @@ def write_events(nwbfile, session_path, suffixes=None):
     else:
         evt_files = [os.path.join(session_path, session_name + s)
                      for s in suffixes]
-    behavior_mod = check_module(nwbfile, 'behavior')
+    if module is None:
+        module = check_module(nwbfile, 'events')
     for evt_file in evt_files:
-        name = evt_file[-3:]
+        parts = os.path.split(evt_file)[1].split('.')
+        if parts[-1] == 'evt':
+            name = parts[-2]
+        else:
+            name = parts[-1]
         df = pd.read_csv(evt_file, sep='\t', names=('time', 'desc'))
         timestamps = df.values[:, 0].astype(float) / 1000
         data = df['desc'].values
         annotation_series = AnnotationSeries(
             name=name, data=data, timestamps=timestamps)
-        behavior_mod.add_data_interface(annotation_series)
+        module.add_data_interface(annotation_series)
 
     return nwbfile
 

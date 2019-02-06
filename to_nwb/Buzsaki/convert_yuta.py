@@ -57,7 +57,7 @@ def add_special_electrodes(nwbfile, session_path):
     for name, channel in special_electrode_dict.items():
         nwbfile.add_electrode(
             id=channel, x=np.nan, y=np.nan, z=np.nan, imp=np.nan, location='unknown',
-            filtering='unknown', electrode_description=name, group=electrode_group, shank=-1)
+            filtering='unknown', group=electrode_group, shank=-1, shank_channel=-1, amp_channel_id=channel)
         nwbfile.create_electrode_table_region([electrode_counter], name)
         electrode_counter += 1
 
@@ -155,6 +155,8 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
                   'OpenFieldPosition_Old', 'OpenFieldPosition_Oldlast', 'EightMazePosition']
 
     module_behavior = nwbfile.create_processing_module(name='behavior', description='description')
+
+    ns.write_events(nwbfile, session_path)
     nwbfile.add_epoch_column('label', 'name of epoch')
     for label in task_types:
 

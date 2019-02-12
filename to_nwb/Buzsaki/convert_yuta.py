@@ -60,7 +60,7 @@ def parse_states(fpath):
 
 
 def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/YutaMouse41/YutaMouse41-150903',
-             subject_xls=None, stub=False):
+             subject_xls=None, stub=True):
 
     subject_path, session_name = os.path.split(session_path)
     fpath_base = os.path.split(subject_path)[0]
@@ -228,22 +228,23 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
                          spike_times=spike_times)
 
     trialdata_path = os.path.join(session_path, session_name + '__EightMazeRun.mat')
-    trials_data = loadmat(trialdata_path)['EightMazeRun']
+    if os.path.isfile(trialdata_path):
+        trials_data = loadmat(trialdata_path)['EightMazeRun']
 
-    trialdatainfo_path = os.path.join(fpath_base, 'EightMazeRunInfo.mat')
-    trialdatainfo = [x[0] for x in loadmat(trialdatainfo_path)['EightMazeRunInfo'][0]]
+        trialdatainfo_path = os.path.join(fpath_base, 'EightMazeRunInfo.mat')
+        trialdatainfo = [x[0] for x in loadmat(trialdatainfo_path)['EightMazeRunInfo'][0]]
 
-    features = trialdatainfo[:7]
-    features[:2] = 'start_time', 'stop_time',
-    [nwbfile.add_trial_column(x, 'description') for x in features[4:] + ['condition']]
+        features = trialdatainfo[:7]
+        features[:2] = 'start_time', 'stop_time',
+        [nwbfile.add_trial_column(x, 'description') for x in features[4:] + ['condition']]
 
-    for trial_data in trials_data:
-        if trial_data[3]:
-            cond = 'run_left'
-        else:
-            cond = 'run_right'
-        nwbfile.add_trial(start_time=trial_data[0], stop_time=trial_data[1], condition=cond,
-                          error_run=trial_data[4], stim_run=trial_data[5], both_visit=trial_data[6])
+        for trial_data in trials_data:
+            if trial_data[3]:
+                cond = 'run_left'
+            else:
+                cond = 'run_right'
+            nwbfile.add_trial(start_time=trial_data[0], stop_time=trial_data[1], condition=cond,
+                              error_run=trial_data[4], stim_run=trial_data[5], both_visit=trial_data[6])
     """
     mono_syn_fpath = os.path.join(session_path, session_name+'-MonoSynConvClick.mat')
 
@@ -260,16 +261,17 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     """
 
     sleep_state_fpath = os.path.join(session_path, session_name+'--StatePeriod.mat')
-    matin = loadmat(sleep_state_fpath)['StatePeriod']
+    if os.path.isfile(sleep_state_fpath):
+        matin = loadmat(sleep_state_fpath)['StatePeriod']
 
-    table = TimeIntervals(name='states', description='sleep states of animal')
-    table.add_column(name='label', description='sleep state')
+        table = TimeIntervals(name='states', description='sleep states of animal')
+        table.add_column(name='label', description='sleep state')
 
-    for name in matin.dtype.names:
-        for row in matin[name][0][0]:
-            table.add_row(start_time=row[0], stop_time=row[1], label=name)
+        for name in matin.dtype.names:
+            for row in matin[name][0][0]:
+                table.add_row(start_time=row[0], stop_time=row[1], label=name)
 
-    module_behavior.add_container(table)
+        module_behavior.add_container(table)
 
     # compute filtered LFP
     print('filtering LFP...', end='', flush=True)

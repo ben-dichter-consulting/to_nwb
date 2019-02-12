@@ -131,8 +131,14 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
                   'OpenFieldPosition_New', 'OpenFieldPosition_Old_Curtain',
                   'OpenFieldPosition_Old', 'OpenFieldPosition_Oldlast', 'EightMazePosition']
 
-    if any(os.path.isfile(os.path.join(session_path, session_name + '__' + label + '.mat')) for label in task_types):
+    sleep_state_fpath = os.path.join(session_path, session_name + '--StatePeriod.mat')
+
+    exist_pos_data = any(os.path.isfile(os.path.join(session_path, session_name + '__' + label + '.mat')) for label in task_types)
+
+    if exist_pos_data:
         nwbfile.add_epoch_column('label', 'name of epoch')
+
+    if exist_pos_data or os.path.isfile(sleep_state_fpath):
         module_behavior = nwbfile.create_processing_module(name='behavior', description='description')
 
     for label in task_types:
@@ -262,7 +268,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     #module_cellular.add_container(inh_obj)
     """
 
-    sleep_state_fpath = os.path.join(session_path, session_name+'--StatePeriod.mat')
+
     if os.path.isfile(sleep_state_fpath):
         matin = loadmat(sleep_state_fpath)['StatePeriod']
 

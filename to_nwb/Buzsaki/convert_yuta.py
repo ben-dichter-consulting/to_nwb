@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 from dateutil.parser import parse as dateparse
 from ephys_analysis.band_analysis import filter_lfp, hilbert_lfp
-from pynwb import NWBFile, NWBHDF5IO
+from pynwb import NWBFile, NWBHDF5IO, TimeSeries
 from pynwb.behavior import SpatialSeries, Position
 from pynwb.file import Subject, TimeIntervals
 from pynwb.form.backends.hdf5.h5_utils import H5DataIO
@@ -32,34 +32,6 @@ def get_reference_elec(exp_sheet_path, date):
     out = df2['h'][take[2:]].values[0]
 
     return out
-
-
-def add_special_electrodes(nwbfile, session_path):
-    """
-
-    Parameters
-    ----------
-    nwbfile: pynwb.NWBFile
-    session_path: str
-
-
-    """
-    session_name = os.path.split(session_path)[1]
-    device_name = 'special'
-    device = nwbfile.create_device(device_name, session_name + '.xml')
-    electrode_group = nwbfile.create_electrode_group(
-        name=device_name + '_electrodes',
-        description=device_name,
-        device=device,
-        location='unknown')
-
-    electrode_counter = len(nwbfile.electrodes)
-    for name, channel in special_electrode_dict.items():
-        nwbfile.add_electrode(
-            id=channel, x=np.nan, y=np.nan, z=np.nan, imp=np.nan, location='unknown',
-            filtering='unknown', group=electrode_group, shank=-1, shank_channel=-1, amp_channel_id=channel)
-        nwbfile.create_electrode_table_region([electrode_counter], name)
-        electrode_counter += 1
 
 
 def parse_states(fpath):
@@ -131,8 +103,6 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     print('setting up electrodes...', end='', flush=True)
     ns.write_electrode_table(nwbfile, session_path)
 
-    add_special_electrodes(nwbfile, session_path)
-
     print('reading LFPs...', end='', flush=True)
     lfp_fs, all_channels_data = ns.read_lfp(session_path, stub=stub)
     shank_channels = ns.get_shank_channels(session_path)
@@ -141,6 +111,11 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     print('writing LFPs...', flush=True)
     ns.write_lfp(nwbfile, lfp_data, lfp_fs, name='all_lfp',
                  description='lfp signal for all shank electrodes')
+
+    for name, channel in special_electrode_dict.items():
+        ts = TimeSeries(name=name, description='environmental electrode recorded inline with neural data',
+                        data=all_channels_data[channel], rate=lfp_fs, unit='V', conversion=np.nan, resolution=np.nan)
+        nwbfile.add_acquisition(ts)
 
     reference_lfp_data = all_channels_data[:, lfp_channel]
 

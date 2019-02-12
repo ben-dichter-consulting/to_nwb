@@ -436,11 +436,12 @@ def write_events(nwbfile, session_path, suffixes=None, module=None):
         else:
             name = parts[-1]
         df = pd.read_csv(evt_file, sep='\t', names=('time', 'desc'))
-        timestamps = df.values[:, 0].astype(float) / 1000
-        data = df['desc'].values
-        annotation_series = AnnotationSeries(
-            name=name, data=data, timestamps=timestamps)
-        module.add_data_interface(annotation_series)
+        if len(df):
+            timestamps = df.values[:, 0].astype(float) / 1000
+            data = df['desc'].values
+            annotation_series = AnnotationSeries(
+                name=name, data=data, timestamps=timestamps)
+            module.add_data_interface(annotation_series)
 
     return nwbfile
 

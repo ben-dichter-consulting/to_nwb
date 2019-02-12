@@ -124,15 +124,17 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     reference_lfp_ts = ns.write_lfp(nwbfile, reference_lfp_data, lfp_fs, name='reference_lfp',
                                     description='lfp signal for reference electrode', electrode_inds=[lfp_index])
 
+    ns.write_events(nwbfile, session_path)
+
     # create epochs corresponding to experiments/environments for the mouse
     task_types = ['OpenFieldPosition_ExtraLarge', 'OpenFieldPosition_New_Curtain',
                   'OpenFieldPosition_New', 'OpenFieldPosition_Old_Curtain',
                   'OpenFieldPosition_Old', 'OpenFieldPosition_Oldlast', 'EightMazePosition']
 
-    module_behavior = nwbfile.create_processing_module(name='behavior', description='description')
+    if any(os.path.isfile(os.path.join(session_path, session_name + '__' + label + '.mat')) for label in task_types):
+        nwbfile.add_epoch_column('label', 'name of epoch')
+        module_behavior = nwbfile.create_processing_module(name='behavior', description='description')
 
-    ns.write_events(nwbfile, session_path)
-    nwbfile.add_epoch_column('label', 'name of epoch')
     for label in task_types:
 
         file = os.path.join(session_path, session_name + '__' + label + '.mat')

@@ -432,7 +432,7 @@ def write_events(nwbfile, session_path, suffixes=None, module=None):
     for evt_file in evt_files:
         parts = os.path.split(evt_file)[1].split('.')
         if parts[-1] == 'evt':
-            name = '.'.join(parts[1:-2])
+            name = '.'.join(parts[1:-1])
         else:
             name = parts[-1]
         df = pd.read_csv(evt_file, sep='\t', names=('time', 'desc'))

@@ -71,7 +71,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     if subject_xls is None:
         subject_xls = os.path.join(subject_path, 'YM' + mouse_number + ' exp_sheet.xlsx')
     else:
-        if subject_xls[-4:] == 'xlsx':
+        if not subject_xls[-4:] == 'xlsx':
             subject_xls = os.path.join(subject_xls, 'YM' + mouse_number + ' exp_sheet.xlsx')
 
     session_start_time = dateparse(date_text, yearfirst=True)

@@ -134,9 +134,12 @@ def add_position_data(nwbfile, session_path, fs=1250./32.,
 
     """
     session_name = os.path.split(session_path)[1]
+    whl_path = os.path.join(session_path, session_name + '.whl')
+    if not os.path.isfile(whl_path):
+        print(whl_path + ' file not found!')
+        return
     print('warning: time may not be aligned')
-    df = pd.read_csv(os.path.join(session_path, session_name + '.whl'),
-                     sep='\t', names=names)
+    df = pd.read_csv(whl_path, sep='\t', names=names)
 
     df.index = np.arange(len(df)) / fs
     df.index.name = 'tt (sec)'

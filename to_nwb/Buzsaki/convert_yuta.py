@@ -26,10 +26,16 @@ special_electrode_dict = {'ch_wait': 79, 'ch_arm': 78, 'ch_solL': 76,
 
 
 def get_reference_elec(exp_sheet_path, date):
-    df1 = pd.read_excel(exp_sheet_path, header=1, sheet_name=1)
-    take = df1['implanted'].values == date
-    df2 = pd.read_excel(exp_sheet_path, header=3, sheet_name=1)
-    out = df2['h'][take[2:]].values[0]
+    try:
+        df1 = pd.read_excel(exp_sheet_path, header=1, sheet_name=1)
+        take = df1['implanted'].values == date
+        df2 = pd.read_excel(exp_sheet_path, header=3, sheet_name=1)
+        out = df2['h'][take[2:]].values[0]
+    except:
+        df1 = pd.read_excel(exp_sheet_path, header=0, sheet_name=1)
+        take = df1['implanted'].values == date
+        df2 = pd.read_excel(exp_sheet_path, header=2, sheet_name=1)
+        out = df2['h'][take[2:]].values[0]
 
     return out
 

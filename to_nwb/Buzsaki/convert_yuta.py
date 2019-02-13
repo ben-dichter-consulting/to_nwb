@@ -37,6 +37,11 @@ def get_reference_elec(exp_sheet_path, date):
         df2 = pd.read_excel(exp_sheet_path, header=2, sheet_name=1)
         out = df2['h'][take[2:]].values[0]
 
+    #  handle e.g. '7(52below m)'
+    if isinstance(out, str):
+        digit_stop = np.where([not x.isdigit() for x in out])[0][0]
+        out = int(out[:digit_stop])
+
     return out
 
 

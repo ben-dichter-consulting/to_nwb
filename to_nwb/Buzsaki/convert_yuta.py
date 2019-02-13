@@ -27,15 +27,19 @@ special_electrode_dict = {'ch_wait': 79, 'ch_arm': 78, 'ch_solL': 76,
 
 def get_reference_elec(exp_sheet_path, date):
     try:
-        df1 = pd.read_excel(exp_sheet_path, header=1, sheet_name=1)
-        take = df1['implanted'].values == date
-        df2 = pd.read_excel(exp_sheet_path, header=3, sheet_name=1)
-        out = df2['h'][take[2:]].values[0]
+        try:
+            df1 = pd.read_excel(exp_sheet_path, header=1, sheet_name=1)
+            take = df1['implanted'].values == date
+            df2 = pd.read_excel(exp_sheet_path, header=3, sheet_name=1)
+            out = df2['h'][take[2:]].values[0]
+        except:
+            df1 = pd.read_excel(exp_sheet_path, header=0, sheet_name=1)
+            take = df1['implanted'].values == date
+            df2 = pd.read_excel(exp_sheet_path, header=2, sheet_name=1)
+            out = df2['h'][take[2:]].values[0]
     except:
-        df1 = pd.read_excel(exp_sheet_path, header=0, sheet_name=1)
-        take = df1['implanted'].values == date
-        df2 = pd.read_excel(exp_sheet_path, header=2, sheet_name=1)
-        out = df2['h'][take[2:]].values[0]
+        print('no channel found in ' + exp_sheet_path)
+        return
 
     #  handle e.g. '7(52below m)'
     if isinstance(out, str):
@@ -139,6 +143,26 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
         lfp_index = np.where(all_shank_channels == lfp_channel)[0][0]
         reference_lfp_ts = ns.write_lfp(nwbfile, reference_lfp_data, lfp_fs, name='reference_lfp',
                                         description='lfp signal for reference electrode', electrode_inds=[lfp_index])
+
+        # compute filtered LFP
+        print('filtering LFP...', end='', flush=True)
+        all_lfp_phases = []
+        for passband in ('theta', 'gamma'):
+            lfp_fft = filter_lfp(reference_lfp_data, lfp_fs, passband=passband)
+            lfp_phase, _ = hilbert_lfp(lfp_fft)
+            all_lfp_phases.append(lfp_phase[:, np.newaxis])
+        data = np.dstack(all_lfp_phases)
+        print('done.', flush=True)
+
+        decomp_series = DecompositionSeries(name='LFPSpectralAnalysis',
+                                            description='Theta and Gamma phase for reference LFP',
+                                            data=data, rate=lfp_fs,
+                                            source_timeseries=reference_lfp_ts,
+                                            metric='phase', unit='radians')
+        decomp_series.add_band(band_name='theta', band_limits=(4, 10))
+        decomp_series.add_band(band_name='gamma', band_limits=(30, 80))
+
+        ns.check_module(nwbfile, 'ecephys', 'ecephys description').add_data_interface(decomp_series)
 
     ns.write_events(nwbfile, session_path)
 
@@ -284,7 +308,6 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     #module_cellular.add_container(inh_obj)
     """
 
-
     if os.path.isfile(sleep_state_fpath):
         matin = loadmat(sleep_state_fpath)['StatePeriod']
 
@@ -296,26 +319,6 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
                 table.add_row(start_time=row[0], stop_time=row[1], label=name)
 
         module_behavior.add_container(table)
-
-    # compute filtered LFP
-    print('filtering LFP...', end='', flush=True)
-    all_lfp_phases = []
-    for passband in ('theta', 'gamma'):
-        lfp_fft = filter_lfp(reference_lfp_data, lfp_fs, passband=passband)
-        lfp_phase, _ = hilbert_lfp(lfp_fft)
-        all_lfp_phases.append(lfp_phase[:, np.newaxis])
-    data = np.dstack(all_lfp_phases)
-    print('done.', flush=True)
-
-    decomp_series = DecompositionSeries(name='LFPSpectralAnalysis',
-                                        description='Theta and Gamma phase for reference LFP',
-                                        data=data, rate=lfp_fs,
-                                        source_timeseries=reference_lfp_ts,
-                                        metric='phase', unit='radians')
-    decomp_series.add_band(band_name='theta', band_limits=(4, 10))
-    decomp_series.add_band(band_name='gamma', band_limits=(30, 80))
-
-    nwbfile.modules['ecephys'].add_data_interface(decomp_series)
 
     if stub:
         out_fname = session_path + '_stub.nwb'

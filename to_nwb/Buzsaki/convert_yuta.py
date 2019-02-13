@@ -90,8 +90,6 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
 
     session_start_time = dateparse(date_text, yearfirst=True)
 
-    lfp_channel = get_reference_elec(subject_xls, session_start_time)
-
     df = pd.read_excel(subject_xls)
 
     subject_data = {}
@@ -135,12 +133,12 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
                         data=all_channels_data[channel], rate=lfp_fs, unit='V', conversion=np.nan, resolution=np.nan)
         nwbfile.add_acquisition(ts)
 
-    reference_lfp_data = all_channels_data[:, lfp_channel]
-
-    lfp_index = np.where(all_shank_channels == lfp_channel)[0][0]
-
-    reference_lfp_ts = ns.write_lfp(nwbfile, reference_lfp_data, lfp_fs, name='reference_lfp',
-                                    description='lfp signal for reference electrode', electrode_inds=[lfp_index])
+    lfp_channel = get_reference_elec(subject_xls, session_start_time)
+    if lfp_channel:
+        reference_lfp_data = all_channels_data[:, lfp_channel]
+        lfp_index = np.where(all_shank_channels == lfp_channel)[0][0]
+        reference_lfp_ts = ns.write_lfp(nwbfile, reference_lfp_data, lfp_fs, name='reference_lfp',
+                                        description='lfp signal for reference electrode', electrode_inds=[lfp_index])
 
     ns.write_events(nwbfile, session_path)
 

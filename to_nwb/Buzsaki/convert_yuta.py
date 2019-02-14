@@ -105,7 +105,10 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     for key in ['genotype', 'DOB', 'implantation', 'Probe']:
         subject_data[key] = df.iloc[np.where(df.iloc[:, 0] == key)[0], 1].values[0]
 
-    age = session_start_time - subject_data['DOB']
+    if isinstance(subject_data['DOB'], datetime):
+        age = session_start_time - subject_data['DOB']
+    else:
+        age = None
 
     subject = Subject(subject_id=subject_id, age=str(age),
                       genotype=subject_data['genotype'],

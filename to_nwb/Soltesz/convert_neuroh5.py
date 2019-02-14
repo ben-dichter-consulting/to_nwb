@@ -8,12 +8,25 @@ import numpy as np
 from pynwb import NWBFile, NWBHDF5IO
 from pynwb.behavior import SpatialSeries, Position
 
-from ..utils import check_module
+from to_nwb.utils import check_module
 
 import sys
 
 
 def read_ragged_array(struct, x):
+    """Read item x from ragged array STRUCT
+
+    Parameters
+    ----------
+    struct: h5py.Group
+    x: int
+
+    Returns
+    -------
+
+    np.array
+
+    """
 
     if 'Cell Index' in struct:
         x = np.where(struct['Cell Index'][:] == x)[0]
@@ -27,6 +40,17 @@ def read_ragged_array(struct, x):
 
 
 def get_neuroh5_cell_data(f):
+    """
+
+    Parameters
+    ----------
+    f: h5py.File
+
+    Yields
+    -------
+    dict
+
+    """
 
     pops = f['Populations']
     for cell_type in pops:
@@ -37,6 +61,19 @@ def get_neuroh5_cell_data(f):
 
 
 def write_position(nwbfile, f, name='Trajectory 100'):
+    """
+
+    Parameters
+    ----------
+    nwbfile: pynwb.NWBFile
+    f: h5py.File
+    name: str (optional)
+
+    Returns
+    -------
+    pynwb.core.ProcessingModule
+
+    """
     obj = f[name]
     behavior_mod = check_module(nwbfile, 'behavior')
 
@@ -44,14 +81,25 @@ def write_position(nwbfile, f, name='Trajectory 100'):
                                    reference_frame='NA',
                                    conversion=1 / 100.,
                                    resolution=np.nan,
-                                   rate=1 / np.diff(obj['t'][:2]) * 1000)
+                                   rate=float(1 / np.diff(obj['t'][:2]) * 1000))
 
     behavior_mod.add_data_interface(Position(spatial_series))
 
     return behavior_mod
 
 
-def neuroh5_to_nwb(fpath='/Users/bendichter/Desktop/Soltesz/data/DG_PP_spikes_101718.h5', out_path=None):
+def neuroh5_to_nwb(fpath='/Users/bendichter/Desktop/Soltesz/data/DG_PP_spikes_101718.h5',
+                   out_path=None):
+    """
+
+    Parameters
+    ----------
+    fpath: str
+        path of neuroh5 file
+    out_path: str (optional)
+        where the NWB file is saved
+
+    """
 
     if out_path is None:
         out_path = fpath[:-3] + '.nwb'
@@ -64,13 +112,13 @@ def neuroh5_to_nwb(fpath='/Users/bendichter/Desktop/Soltesz/data/DG_PP_spikes_10
                       session_start_time=datetime.now().astimezone(),
                       institution='Stanford University', lab='Soltesz')
 
-    with File('fpath', 'r') as f:
+    with File(fpath, 'r') as f:
         write_position(nwbfile, f)
 
         nwbfile.add_unit_column('cell_type', 'cell type')
         nwbfile.add_unit_column('pop_id', 'cell number within population')
 
-        for unit_dict in tqdm(get_neuroh5_cell_data(fpath),
+        for unit_dict in tqdm(get_neuroh5_cell_data(f),
                               total=38000+34000,
                               desc='reading cell data'):
             nwbfile.add_unit(**unit_dict)

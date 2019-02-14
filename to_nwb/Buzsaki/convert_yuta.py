@@ -50,7 +50,7 @@ def get_reference_elec(exp_sheet_path, date, b=False):
         if digit_stop:
             return int(out[:digit_stop])
         else:
-            print('invalid channel found in ' + exp_sheet_path + ', ' + out)
+            print('invalid channel for ' + exp_sheet_path + ' ' + str(date) + ': ' + out)
             return
 
     return out

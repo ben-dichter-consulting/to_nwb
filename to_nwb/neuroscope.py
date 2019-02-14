@@ -14,6 +14,8 @@ from pynwb.form.data_utils import DataChunkIterator
 from pynwb.misc import AnnotationSeries
 from tqdm import tqdm
 
+from .utils import check_module
+
 
 def load_xml(filepath):
     with open(filepath, 'r') as xml_file:
@@ -47,29 +49,6 @@ def get_channel_groups(session_path=None, xml_filepath=None):
                       for group in soup.channelGroups.find_all('group')]
 
     return channel_groups
-
-
-def check_module(nwbfile, name, description=None):
-    """Check if processing module exists. If not, create it. Then return module
-
-    Parameters
-    ----------
-    nwbfile: pynwb.NWBFile
-    name: str
-    description: str | None (optional)
-
-    Returns
-    -------
-    pynwb.module
-
-    """
-
-    if name in nwbfile.modules:
-        return nwbfile.modules[name]
-    else:
-        if description is None:
-            description = name
-        return nwbfile.create_processing_module(name, description)
 
 
 def get_shank_channels(session_path=None, xml_filepath=None):

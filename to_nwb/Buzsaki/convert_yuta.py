@@ -14,6 +14,7 @@ from pynwb.file import Subject, TimeIntervals
 from pynwb.form.backends.hdf5.h5_utils import H5DataIO
 from pynwb.misc import DecompositionSeries
 from scipy.io import loadmat
+from ..utils import check_module
 
 import to_nwb.neuroscope as ns
 from to_nwb.utils import find_discontinuities
@@ -162,7 +163,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
         decomp_series.add_band(band_name='theta', band_limits=(4, 10))
         decomp_series.add_band(band_name='gamma', band_limits=(30, 80))
 
-        ns.check_module(nwbfile, 'ecephys', 'ecephys description').add_data_interface(decomp_series)
+        check_module(nwbfile, 'ecephys', 'ecephys description').add_data_interface(decomp_series)
 
     ns.write_events(nwbfile, session_path)
 
@@ -177,9 +178,6 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
 
     if exist_pos_data:
         nwbfile.add_epoch_column('label', 'name of epoch')
-
-    if exist_pos_data or os.path.isfile(sleep_state_fpath):
-        module_behavior = nwbfile.create_processing_module(name='behavior', description='description')
 
     for label in task_types:
 
@@ -220,7 +218,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
 
             pos_obj = Position(name=label + '_position',
                                spatial_series=spatial_series_object)
-            module_behavior.add_container(pos_obj)
+            check_module(nwbfile, 'behavior', 'description').add_container(pos_obj)
             for i, window in enumerate(exp_times):
                 nwbfile.add_epoch(start_time=window[0], stop_time=window[1],
                                   label=label + '_' + str(i))
@@ -318,7 +316,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
             for row in matin[name][0][0]:
                 table.add_row(start_time=row[0], stop_time=row[1], label=name)
 
-        module_behavior.add_container(table)
+        check_module(nwbfile, 'behavior', 'description').add_container(table)
 
     if stub:
         out_fname = session_path + '_stub.nwb'

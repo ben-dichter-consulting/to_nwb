@@ -47,7 +47,11 @@ def get_reference_elec(exp_sheet_path, date, b=False):
     #  handle e.g. '7(52below m)'
     if isinstance(out, str):
         digit_stop = np.where([not x.isdigit() for x in out])[0][0]
-        out = int(out[:digit_stop])
+        if digit_stop:
+            return int(out[:digit_stop])
+        else:
+            print('invalid channel found in ' + exp_sheet_path + ', ' + out)
+            return
 
     return out
 

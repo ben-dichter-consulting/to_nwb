@@ -26,7 +26,9 @@ special_electrode_dict = {'ch_wait': 79, 'ch_arm': 78, 'ch_solL': 76,
                           'ch_SsolR': 70}
 
 
-def get_reference_elec(exp_sheet_path, date):
+def get_reference_elec(exp_sheet_path, date, b=False):
+    if b:
+        date = date.strftime("%-m/%-d/%Y") + 'b'
     try:
         try:
             df1 = pd.read_excel(exp_sheet_path, header=1, sheet_name=1)
@@ -84,8 +86,10 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     mouse_number = session_name[9:11]
     if '-' in session_name:
         subject_id, date_text = session_name.split('-')
+        b = False
     else:
         subject_id, date_text = session_name.split('b')
+        b = True
 
     if subject_xls is None:
         subject_xls = os.path.join(subject_path, 'YM' + mouse_number + ' exp_sheet.xlsx')
@@ -138,8 +142,8 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
                         data=all_channels_data[channel], rate=lfp_fs, unit='V', conversion=np.nan, resolution=np.nan)
         nwbfile.add_acquisition(ts)
 
-    lfp_channel = get_reference_elec(subject_xls, session_start_time)
-    if lfp_channel:
+    lfp_channel = get_reference_elec(subject_xls, session_start_time, b=b)
+    if lfp_channel and np.isfinite(lfp_channel):
         reference_lfp_data = all_channels_data[:, lfp_channel]
         lfp_index = np.where(all_shank_channels == lfp_channel)[0][0]
         reference_lfp_ts = ns.write_lfp(nwbfile, reference_lfp_data, lfp_fs, name='reference_lfp',

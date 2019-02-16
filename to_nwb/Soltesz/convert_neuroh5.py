@@ -51,13 +51,20 @@ def get_neuroh5_cell_data(f):
     dict
 
     """
+    labs = f['H5Types']['Population labels']
+    population_table = f['H5Types']['Populations']
+    cell_types_order = {labs.id.get_member_value(i): labs.id.get_member_name(i)
+                        for i in range(labs.id.get_nmembers())}
+    start_dict = {pop_name.decode(): population_table['Start'][population_table['Population'] == pop_int][0]
+                  for pop_int, pop_name in cell_types_order.items()}
 
     pops = f['Populations']
     for cell_type in pops:
         spike_struct = pops[cell_type]['Vector Stimulus 100']['spiketrain']
         for pop_id in spike_struct['Cell Index']:
             spike_times = read_ragged_array(spike_struct, pop_id) / 1000
-            yield {'pop_id': int(pop_id), 'spike_times': spike_times, 'cell_type': cell_type}
+            gid = pop_id + start_dict[cell_type]
+            yield {'id': int(gid), 'pop_id': int(pop_id), 'spike_times': spike_times, 'cell_type': cell_type}
 
 
 def write_position(nwbfile, f, name='Trajectory 100'):
@@ -88,7 +95,7 @@ def write_position(nwbfile, f, name='Trajectory 100'):
     return behavior_mod
 
 
-def neuroh5_to_nwb(fpath='/Users/bendichter/Desktop/Soltesz/data/DG_PP_spikes_101718.h5',
+def neuroh5_to_nwb(fpath='/Users/bendichter/Desktop/Soltesz/data/DG_PP_features_12142018.h5',
                    out_path=None):
     """
 

@@ -8,10 +8,10 @@ import numpy as np
 import pandas as pd
 from bs4 import BeautifulSoup
 from pynwb.behavior import SpatialSeries
-from pynwb.ecephys import ElectricalSeries, LFP, SpikeEventSeries, Clustering
+from pynwb.ecephys import ElectricalSeries, LFP, SpikeEventSeries
 from pynwb.form.backends.hdf5.h5_utils import H5DataIO
 from pynwb.form.data_utils import DataChunkIterator
-from pynwb.misc import AnnotationSeries
+from pynwb.misc import AnnotationSeries, UnitSeries
 from tqdm import tqdm
 
 from .utils import check_module
@@ -140,7 +140,7 @@ def add_position_data(nwbfile, session_path, fs=1250./32.,
 
 def read_spike_times(session_path, shankn, fs=20000.):
     """
-    Read .res files
+    Read .res files to get spike times
 
     Parameters
     ----------
@@ -194,7 +194,7 @@ def get_clusters_single_shank(session_path, shankn, fs=20000.):
     session_path: str | path
         session path
     shankn: int
-        shank number
+        shank number (1-indexed)
     fs: float
 
     Returns
@@ -216,21 +216,43 @@ def get_clusters_single_shank(session_path, shankn, fs=20000.):
     return df
 
 
-def write_clustering(module_cellular, session_path, shanks, fs=20000.):
-    for shankn in shanks:
-        df = get_clusters_single_shank(session_path, shankn, fs=fs)
-        clustering = Clustering(
-            name='shank' + str(shankn) + ' clusters',
-            description='shank' + str(shankn), num=df['id'].values,
-            peak_over_rms=[], times=df['time'].values)
+def write_unit_series(nwbfile, session_path, shankn, fs=20000.):
+    """
 
-        module_cellular.add_container(clustering)
+    Parameters
+    ----------
+    nwbfile: pynwb.NWBFile
+    session_path: str | path
+    shankn: int
+        shank number (1-indexed)
+    fs: float
 
-    return module_cellular
+    """
+
+    # find first row where units are from this shank
+    start = np.argmax(nwbfile.units.electrode_group == nwbfile.electrode_groups['shank' + str(shankn)])
+
+    df = get_clusters_single_shank(session_path, shankn, fs=fs)
+
+    # TO DO: link timestamps to SpikeEventSeries
+
+    unit_series = UnitSeries(
+        name='UnitSeries' + str(shankn),
+        description='shank' + str(shankn),
+        num=df['id'].values + start,
+        timestamps=df['time'].values)
+
+    ecephys_module = check_module(nwbfile, 'ecephys')
+    if 'SpikeEventSeries' + str(shankn) in ecephys_module:
+        ecephys_module['SpikeEventSeries' + str(shankn)].unit_series = unit_series
+    else:
+        print('UnitSeries' + str(shankn) + ' not linked with a SpikeEventSeries object')
+
+    ecephys_module.add_data_interface(unit_series)
 
 
 def write_electrode_table(nwbfile, session_path, electrode_positions=None,
-                          impedences=None, locations=None, filterings=None):
+                          impedances=None, locations=None, filterings=None):
     """
 
     Parameters
@@ -238,7 +260,7 @@ def write_electrode_table(nwbfile, session_path, electrode_positions=None,
     nwbfile: pynwb.NWBFile
     session_path: str
     electrode_positions: Iterable(Iterable(float))
-    impedences: Iterable(float)
+    impedances: Iterable(float)
     locations: Iterable(str)
     filterings: Iterable(str)
 
@@ -246,43 +268,42 @@ def write_electrode_table(nwbfile, session_path, electrode_positions=None,
     fpath_base, fname = os.path.split(session_path)
 
     shank_channels = get_shank_channels(session_path)
-    nwbfile.add_electrode_column('shank', '1-indexed shank numbers')
-    nwbfile.add_electrode_column('shank_channel', '1-indexed channel within a shank')
-    nwbfile.add_electrode_column('amp_channel_id', 'order in which the channels were plugged into amp')
+    nwbfile.add_electrode_column('shank_electrode_number', '1-indexed channel within a shank')
+    nwbfile.add_electrode_column('amp_channel', 'order in which the channels were plugged into amp')
 
-    device = nwbfile.create_device('device', fname + '.xml')
+    device = nwbfile.create_device('implant', fname + '.xml')
     for shankn, channels in enumerate(shank_channels):
         shankn += 1
         electrode_group = nwbfile.create_electrode_group(
             name='shank{}'.format(shankn),
             description='shank{} electrodes'.format(shankn),
             device=device, location='unknown')
-        for shank_channel, channel in enumerate(channels):
+        for shank_electrode_number, amp_channel in enumerate(channels):
             if electrode_positions is not None:
-                pos = electrode_positions[channel]
+                pos = electrode_positions[amp_channel]
             else:
                 pos = (np.nan, np.nan, np.nan)
 
-            if impedences is None:
+            if impedances is None:
                 imp = np.nan
             else:
-                imp = impedences[channel]
+                imp = impedances[amp_channel]
 
             if locations is None:
                 location = 'unknown'
             else:
-                location = locations[channel]
+                location = locations[amp_channel]
 
             if filterings is None:
                 filtering = 'unknown'
             else:
-                filtering = filterings[channel]
+                filtering = filterings[amp_channel]
 
             nwbfile.add_electrode(
                 float(pos[0]), float(pos[1]), float(pos[2]),
                 imp=imp, location=location, filtering=filtering,
-                group=electrode_group, shank=shankn, amp_channel_id=channel,
-                shank_channel=shank_channel)
+                group=electrode_group, amp_channel=amp_channel,
+                shank_electrode_number=shank_electrode_number)
 
 
 def read_lfp(session_path, stub=False):
@@ -331,7 +352,7 @@ def write_lfp(nwbfile, data, fs, name='LFP', description='local field potential 
 
     Returns
     -------
-    LFP ElectricalSeries
+    LFP pynwb.ecephys.ElectricalSeries
 
     """
 
@@ -369,8 +390,8 @@ def add_lfp(nwbfile, session_path, name='LFP', description='local field potentia
     ----------
     nwbfile: pynwb.NWBFile
     session_path: str
-    name: str
-    description: str
+    name: str, optional
+    description: str, optional
     stub: bool, optional
         Default is False. If True, don't read LFP, but instead add a small
         amount of placeholder data. This is useful for rapidly checking new
@@ -444,36 +465,36 @@ def write_spike_waveforms(nwbfile, session_path, shankn):
 
     session_name = os.path.split(session_path)[1]
     xml_filepath = os.path.join(session_path, session_name + '.xml')
-    soup = load_xml(xml_filepath)
-    nsamps = float(soup.spikes.nSamples.string)
 
-    spk_file = os.path.join(session_path, session_name + '.spk.' + str(shankn))
-    group_name = 'shank' + str(shankn)
-
-    elec_idx = np.where(np.array(nwbfile.ec_electrodes['group_name']) == group_name)[0]
+    group = nwbfile.electrode_groups['shank' + str(shankn)]
+    elec_idx = np.where(np.array(nwbfile.ec_electrodes['group']) == group)[0]
+    table_region = nwbfile.create_electrode_table_region(elec_idx, group.name + 'region')
 
     nchan = len(elec_idx)
-
-    table_region = nwbfile.create_electrode_table_region(elec_idx, group_name)
-
-    get_shank_channels(xml_filepath)
+    soup = load_xml(xml_filepath)
+    nsamps = float(soup.spikes.nSamples.string)
+    spk_file = os.path.join(session_path, session_name + '.spk.' + str(shankn))
     spks = np.fromfile(spk_file, dtype=np.int16).reshape(-1, nsamps, nchan)
 
     spike_times = read_spike_times(session_path, shankn)
 
-    SpikeEventSeries(name='spike_waveforms', data=spks, timestamps=spike_times, electrodes=table_region)
+    spike_event_series = SpikeEventSeries(name='SpikeEventSeries' + str(shankn), data=spks, timestamps=spike_times,
+                                          electrodes=table_region)
+
+    if 'shank' + str(shankn) in nwbfile.electrode_groups:
+        nwbfile.electrode_groups['shank' + str(shankn)].spike_event_series = spike_event_series
+
+    check_module(nwbfile, 'ecehpys').add_data_interface(spike_event_series)
 
 
-def add_units(nwbfile, session_path):
-    nwbfile.add_unit_column('shank', '1-indexed shank number')
+def add_units(nwbfile, session_path, shankn):
+    electrode_group = nwbfile.electrode_groups['shank' + str(shankn)]
     nwbfile.add_unit_column('cluster_id', '0-indexed id of cluster of shank')
 
     channel_groups = get_channel_groups(session_path)
     for shankn in range(len(channel_groups)):
         df = get_clusters_single_shank(session_path, shankn + 1)
         for cluster_id, idf in df.groupby('id'):
-            import pdb; pdb.set_trace()
-            nwbfile.add_unit(shank=shankn + 1, spike_times=idf['time'].values,
-                             cluster_id=cluster_id)
+            nwbfile.add_unit(spike_times=idf['time'].values, cluster_id=cluster_id, electrode_group=electrode_group)
 
     return nwbfile

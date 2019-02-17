@@ -4,6 +4,8 @@ from datetime import datetime
 from pynwb import NWBFile, NWBHDF5IO
 from pynwb.file import Subject
 
+import numpy as np
+
 import to_nwb.neuroscope as ns
 
 session_path = '/Users/bendichter/Desktop/Buzsaki/data/buzsakilab.nyumc.org/datasets/McKenzieS/camkii4/20160817'
@@ -28,8 +30,14 @@ nwbfile.subject = Subject(subject_id=subject_id, species='Mus musculus')
 
 ns.write_electrode_table(nwbfile, session_path)
 ns.add_lfp(nwbfile, session_path, stub=stub)
-ns.add_units(nwbfile, session_path)
+
 ns.write_events(nwbfile, session_path)
+
+nshanks = len(ns.get_shank_channels(session_path))
+for shankn in np.arange(nshanks)+1:
+    ns.add_units(nwbfile, session_path, shankn)
+    ns.write_spike_waveforms(nwbfile, session_path, shankn)
+    ns.write_unit_series(nwbfile, session_path, shankn)
 
 out_fname = session_path
 if stub:

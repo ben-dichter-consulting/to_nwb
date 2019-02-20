@@ -8,10 +8,10 @@ import numpy as np
 import pandas as pd
 from bs4 import BeautifulSoup
 from pynwb.behavior import SpatialSeries
-from pynwb.ecephys import ElectricalSeries, LFP, SpikeEventSeries
+from pynwb.ecephys import ElectricalSeries, LFP, SpikeEventSeries, EventWaveform#, UnitSeries
 from pynwb.form.backends.hdf5.h5_utils import H5DataIO
 from pynwb.form.data_utils import DataChunkIterator
-from pynwb.misc import AnnotationSeries, UnitSeries
+from pynwb.misc import AnnotationSeries
 from tqdm import tqdm
 
 from .utils import check_module
@@ -228,19 +228,20 @@ def write_unit_series(nwbfile, session_path, shankn, fs=20000.):
     fs: float
 
     """
-
+    """
     # find first row where units are from this shank
     start = np.argmax(nwbfile.units.electrode_group == nwbfile.electrode_groups['shank' + str(shankn)])
 
     df = get_clusters_single_shank(session_path, shankn, fs=fs)
 
     # TO DO: link timestamps to SpikeEventSeries
-
+    
     unit_series = UnitSeries(
         name='UnitSeries' + str(shankn),
         description='shank' + str(shankn),
         num=df['id'].values + start,
         timestamps=df['time'].values)
+    
 
     ecephys_module = check_module(nwbfile, 'ecephys')
     if 'SpikeEventSeries' + str(shankn) in ecephys_module:
@@ -249,10 +250,11 @@ def write_unit_series(nwbfile, session_path, shankn, fs=20000.):
         print('UnitSeries' + str(shankn) + ' not linked with a SpikeEventSeries object')
 
     ecephys_module.add_data_interface(unit_series)
+    """
 
 
 def write_electrode_table(nwbfile, session_path, electrode_positions=None,
-                          impedances=None, locations=None, filterings=None):
+                          impedances=None, locations=None, filterings=None, custom_columns=()):
     """
 
     Parameters
@@ -260,9 +262,11 @@ def write_electrode_table(nwbfile, session_path, electrode_positions=None,
     nwbfile: pynwb.NWBFile
     session_path: str
     electrode_positions: Iterable(Iterable(float))
-    impedances: Iterable(float)
-    locations: Iterable(str)
-    filterings: Iterable(str)
+    impedances: array-like(dtype=float) (optional)
+    locations: array-like(dtype=str) (optional)
+    filterings: array-like(dtype=str) (optional)
+    custom_columns: list(dict) (optional)
+        {name, description, data} for any custom columns
 
     """
     fpath_base, fname = os.path.split(session_path)
@@ -270,6 +274,9 @@ def write_electrode_table(nwbfile, session_path, electrode_positions=None,
     shank_channels = get_shank_channels(session_path)
     nwbfile.add_electrode_column('shank_electrode_number', '1-indexed channel within a shank')
     nwbfile.add_electrode_column('amp_channel', 'order in which the channels were plugged into amp')
+    for custom_column in custom_columns:
+        nwbfile.add_electrode_column(custom_column['name'],
+                                     custom_column['description'])
 
     device = nwbfile.create_device('implant', fname + '.xml')
     for shankn, channels in enumerate(shank_channels):
@@ -299,11 +306,14 @@ def write_electrode_table(nwbfile, session_path, electrode_positions=None,
             else:
                 filtering = filterings[amp_channel]
 
+            custom_data = {custom_col['name']: custom_col['data'][amp_channel]
+                           for custom_col in custom_columns}
+
             nwbfile.add_electrode(
                 float(pos[0]), float(pos[1]), float(pos[2]),
                 imp=imp, location=location, filtering=filtering,
                 group=electrode_group, amp_channel=amp_channel,
-                shank_electrode_number=shank_electrode_number)
+                shank_electrode_number=shank_electrode_number, **custom_data)
 
 
 def read_lfp(session_path, stub=False):
@@ -323,14 +333,13 @@ def read_lfp(session_path, stub=False):
 
     """
     lfp_fs = get_lfp_sampling_rate(session_path)
+    n_channels = sum(len(x) for x in get_channel_groups(session_path))
     if stub:
-        all_channels_lfp = np.random.randn(1000, 100)  # use for dev testing for speed
+        all_channels_lfp = np.random.randn(1000, n_channels)  # use for dev testing for speed
         return lfp_fs, all_channels_lfp
 
     fpath_base, fname = os.path.split(session_path)
     lfp_filepath = os.path.join(session_path, fname + '.eeg')
-
-    n_channels = sum(len(x) for x in get_channel_groups(session_path))
 
     all_channels_data = np.fromfile(lfp_filepath, dtype=np.int16).reshape(-1, n_channels)
 
@@ -416,11 +425,6 @@ def write_events(nwbfile, session_path, suffixes=None, module=None):
         The 3-letter names for the events to write. If None, detect all in session_path
     module: pynwb.processing_module
 
-    Returns
-    -------
-
-    nwbfile
-
     """
     session_name = os.path.split(session_path)[1]
 
@@ -446,8 +450,6 @@ def write_events(nwbfile, session_path, suffixes=None, module=None):
                 name=name, data=data, timestamps=timestamps)
             module.add_data_interface(annotation_series)
 
-    return nwbfile
-
 
 def write_spike_waveforms(nwbfile, session_path, shankn):
     """
@@ -467,14 +469,14 @@ def write_spike_waveforms(nwbfile, session_path, shankn):
     xml_filepath = os.path.join(session_path, session_name + '.xml')
 
     group = nwbfile.electrode_groups['shank' + str(shankn)]
-    elec_idx = np.where(np.array(nwbfile.ec_electrodes['group']) == group)[0]
+    elec_idx = list(np.where(np.array(nwbfile.ec_electrodes['group']) == group)[0])
     table_region = nwbfile.create_electrode_table_region(elec_idx, group.name + 'region')
 
     nchan = len(elec_idx)
     soup = load_xml(xml_filepath)
     nsamps = float(soup.spikes.nSamples.string)
     spk_file = os.path.join(session_path, session_name + '.spk.' + str(shankn))
-    spks = np.fromfile(spk_file, dtype=np.int16).reshape(-1, nsamps, nchan)
+    spks = np.fromfile(spk_file, dtype=np.int16).reshape(-1, int(nsamps), nchan)
 
     spike_times = read_spike_times(session_path, shankn)
 
@@ -482,19 +484,22 @@ def write_spike_waveforms(nwbfile, session_path, shankn):
                                           electrodes=table_region)
 
     if 'shank' + str(shankn) in nwbfile.electrode_groups:
-        nwbfile.electrode_groups['shank' + str(shankn)].spike_event_series = spike_event_series
+        nwbfile.electrode_groups['shank' + str(shankn)].event_waveform = EventWaveform(
+            spike_event_series=spike_event_series)
 
     check_module(nwbfile, 'ecehpys').add_data_interface(spike_event_series)
 
 
 def add_units(nwbfile, session_path, shankn):
     electrode_group = nwbfile.electrode_groups['shank' + str(shankn)]
-    nwbfile.add_unit_column('cluster_id', '0-indexed id of cluster of shank')
+
+    if nwbfile.units is None:
+        nwbfile.add_unit_column('shank_id', '0-indexed id of cluster of shank')
 
     channel_groups = get_channel_groups(session_path)
     for shankn in range(len(channel_groups)):
         df = get_clusters_single_shank(session_path, shankn + 1)
-        for cluster_id, idf in df.groupby('id'):
-            nwbfile.add_unit(spike_times=idf['time'].values, cluster_id=cluster_id, electrode_group=electrode_group)
+        for shank_id, idf in df.groupby('id'):
+            nwbfile.add_unit(spike_times=idf['time'].values, shank_id=shank_id, electrode_group=electrode_group)
 
     return nwbfile

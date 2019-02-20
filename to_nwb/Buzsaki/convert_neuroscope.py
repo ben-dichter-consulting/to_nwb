@@ -6,9 +6,11 @@ from pynwb.file import Subject
 
 import numpy as np
 
+from tqdm import tqdm
+
 import to_nwb.neuroscope as ns
 
-session_path = '/Users/bendichter/Desktop/Buzsaki/data/buzsakilab.nyumc.org/datasets/McKenzieS/camkii4/20160817'
+session_path = '/Users/bendichter/Desktop/Buzsaki/datasets/McKenzieS/camkii4/20160817'
 
 stub = True
 
@@ -34,7 +36,7 @@ ns.add_lfp(nwbfile, session_path, stub=stub)
 ns.write_events(nwbfile, session_path)
 
 nshanks = len(ns.get_shank_channels(session_path))
-for shankn in np.arange(nshanks)+1:
+for shankn in tqdm(np.arange(nshanks)+1, desc='processing each shank'):
     ns.add_units(nwbfile, session_path, shankn)
     ns.write_spike_waveforms(nwbfile, session_path, shankn)
     ns.write_unit_series(nwbfile, session_path, shankn)

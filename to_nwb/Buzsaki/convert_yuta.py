@@ -132,49 +132,51 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     print('reading and writing raw position data...', end='', flush=True)
     ns.add_position_data(nwbfile, session_path)
 
+    shank_channels = ns.get_shank_channels(session_path)
+    all_shank_channels = np.concatenate(shank_channels)
+
     print('setting up electrodes...', end='', flush=True)
-    ns.write_electrode_table(nwbfile, session_path)
+    lfp_channel = get_reference_elec(subject_xls, session_start_time, b=b)
+    if lfp_channel is not None and np.isfinite(lfp_channel):
+        custom_column = [{'name': 'theta_reference',
+                          'description': 'this electrode was used to calculate LFP canonical bands',
+                          'data': all_shank_channels == lfp_channel}]
+        ns.write_electrode_table(nwbfile, session_path, custom_columns=custom_column)
+    else:
+        ns.write_electrode_table(nwbfile, session_path)
 
     print('reading LFPs...', end='', flush=True)
     lfp_fs, all_channels_data = ns.read_lfp(session_path, stub=stub)
-    shank_channels = ns.get_shank_channels(session_path)
-    all_shank_channels = np.concatenate(shank_channels)
+
     lfp_data = all_channels_data[:, all_shank_channels]
     print('writing LFPs...', flush=True)
-    ns.write_lfp(nwbfile, lfp_data, lfp_fs, name='all_lfp',
-                 description='lfp signal for all shank electrodes')
+    lfp_ts = ns.write_lfp(nwbfile, lfp_data, lfp_fs, name='lfp',
+                          description='lfp signal for all shank electrodes')
 
     for name, channel in special_electrode_dict.items():
         ts = TimeSeries(name=name, description='environmental electrode recorded inline with neural data',
                         data=all_channels_data[channel], rate=lfp_fs, unit='V', conversion=np.nan, resolution=np.nan)
         nwbfile.add_acquisition(ts)
 
-    lfp_channel = get_reference_elec(subject_xls, session_start_time, b=b)
-    if lfp_channel and np.isfinite(lfp_channel):
-        reference_lfp_data = all_channels_data[:, lfp_channel]
-        lfp_index = np.where(all_shank_channels == lfp_channel)[0][0]
-        reference_lfp_ts = ns.write_lfp(nwbfile, reference_lfp_data, lfp_fs, name='reference_lfp',
-                                        description='lfp signal for reference electrode', electrode_inds=[lfp_index])
+    # compute filtered LFP
+    print('filtering LFP...', end='', flush=True)
+    all_lfp_phases = []
+    for passband in ('theta', 'gamma'):
+        lfp_fft = filter_lfp(lfp_data[:, all_shank_channels == lfp_channel].T, lfp_fs, passband=passband)
+        lfp_phase, _ = hilbert_lfp(lfp_fft)
+        all_lfp_phases.append(lfp_phase[:, np.newaxis])
+    data = np.dstack(all_lfp_phases)
+    print('done.', flush=True)
 
-        # compute filtered LFP
-        print('filtering LFP...', end='', flush=True)
-        all_lfp_phases = []
-        for passband in ('theta', 'gamma'):
-            lfp_fft = filter_lfp(reference_lfp_data, lfp_fs, passband=passband)
-            lfp_phase, _ = hilbert_lfp(lfp_fft)
-            all_lfp_phases.append(lfp_phase[:, np.newaxis])
-        data = np.dstack(all_lfp_phases)
-        print('done.', flush=True)
+    decomp_series = DecompositionSeries(name='LFPSpectralAnalysis',
+                                        description='Theta and Gamma phase for reference LFP',
+                                        data=data, rate=lfp_fs,
+                                        source_timeseries=lfp_ts,
+                                        metric='phase', unit='radians')
+    decomp_series.add_band(band_name='theta', band_limits=(4, 10))
+    decomp_series.add_band(band_name='gamma', band_limits=(30, 80))
 
-        decomp_series = DecompositionSeries(name='LFPSpectralAnalysis',
-                                            description='Theta and Gamma phase for reference LFP',
-                                            data=data, rate=lfp_fs,
-                                            source_timeseries=reference_lfp_ts,
-                                            metric='phase', unit='radians')
-        decomp_series.add_band(band_name='theta', band_limits=(4, 10))
-        decomp_series.add_band(band_name='gamma', band_limits=(30, 80))
-
-        check_module(nwbfile, 'ecephys', 'ecephys description').add_data_interface(decomp_series)
+    check_module(nwbfile, 'ecephys', 'ecephys description').add_data_interface(decomp_series)
 
     ns.write_events(nwbfile, session_path)
 

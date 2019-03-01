@@ -162,7 +162,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     print('filtering LFP...', end='', flush=True)
     all_lfp_phases = []
     for passband in ('theta', 'gamma'):
-        lfp_fft = filter_lfp(lfp_data[:, all_shank_channels == lfp_channel].T, lfp_fs, passband=passband)
+        lfp_fft = filter_lfp(lfp_data[:, all_shank_channels == lfp_channel].ravel(), lfp_fs, passband=passband)
         lfp_phase, _ = hilbert_lfp(lfp_fft)
         all_lfp_phases.append(lfp_phase[:, np.newaxis])
     data = np.dstack(all_lfp_phases)

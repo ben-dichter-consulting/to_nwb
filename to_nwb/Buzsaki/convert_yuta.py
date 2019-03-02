@@ -25,6 +25,17 @@ special_electrode_dict = {'ch_wait': 79, 'ch_arm': 78, 'ch_solL': 76,
                           'ch_entL': 72, 'ch_entR': 71, 'ch_SsolL': 73,
                           'ch_SsolR': 70}
 
+# conversion values taken from methods of Senzai, Buzsaki 2017
+task_types = [
+    {'name': 'OpenFieldPosition_ExtraLarge'},
+    {'name': 'OpenFieldPosition_New_Curtain', 'conversion': 0.46},
+    {'name': 'OpenFieldPosition_New', 'conversion': 0.46},
+    {'name': 'OpenFieldPosition_Old_Curtain', 'conversion': 0.46},
+    {'name': 'OpenFieldPosition_Old', 'conversion': 0.46},
+    {'name': 'OpenFieldPosition_Oldlast', 'conversion': 0.46},
+    {'name': 'EightMazePosition', 'conversion': 0.65 / 2}
+]
+
 
 def get_reference_elec(exp_sheet_path, date, b=False):
     if b:
@@ -58,9 +69,9 @@ def get_reference_elec(exp_sheet_path, date, b=False):
 
 def get_max_electrodes(nwbfile, session_path):
     elec_ids = []
-    for shankn in range(len(ns.get_shank_channels(session_path))):
-        df = ns.get_clusters_single_shank(session_path, shankn + 1)
-        electrode_group = nwbfile.electrode_groups['shank' + str(shankn + 1)]
+    for shankn in np.arange(len(ns.get_shank_channels(session_path)), dtype=int) + 1:
+        df = ns.get_clusters_single_shank(session_path, shankn)
+        electrode_group = nwbfile.electrode_groups['shank' + str(shankn)]
         # as a temporary solution, take first channel from shank as max channel
         elec_idx = np.argmax(np.array(nwbfile.electrodes['group']) == electrode_group)
         for i in range(len(set(df['id']))):
@@ -192,62 +203,51 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     decomp_series.add_band(band_name='theta', band_limits=(4, 10))
     decomp_series.add_band(band_name='gamma', band_limits=(30, 80))
 
-    check_module(nwbfile, 'ecephys', 'ecephys description').add_data_interface(decomp_series)
+    check_module(nwbfile, 'ecephys', 'contains processed extracellular electrophysiology data').add_data_interface(decomp_series)
 
     [nwbfile.add_stimulus(x) for x in ns.get_events(session_path)]
 
     # create epochs corresponding to experiments/environments for the mouse
-    task_types = ['OpenFieldPosition_ExtraLarge', 'OpenFieldPosition_New_Curtain',
-                  'OpenFieldPosition_New', 'OpenFieldPosition_Old_Curtain',
-                  'OpenFieldPosition_Old', 'OpenFieldPosition_Oldlast', 'EightMazePosition']
 
-    sleep_state_fpath = os.path.join(session_path, session_name + '--StatePeriod.mat')
+    sleep_state_fpath = os.path.join(session_path, '{}--StatePeriod.mat'.format(session_name))
 
-    exist_pos_data = any(os.path.isfile(os.path.join(session_path, session_name + '__' + label + '.mat')) for label in task_types)
+    exist_pos_data = any(os.path.isfile(os.path.join(session_path, '{}__{}.mat'.format(session_name, task_type['name'])))
+                         for task_type in task_types)
 
     if exist_pos_data:
         nwbfile.add_epoch_column('label', 'name of epoch')
 
-    for label in task_types:
+    for task_type in task_types:
+        label = task_type['name']
 
         file = os.path.join(session_path, session_name + '__' + label + '.mat')
         if os.path.isfile(file):
-            print('loading normalized position for ' + label + '...', end='', flush=True)
+            print('loading position for ' + label + '...', end='', flush=True)
+
+            pos_obj = Position(name=label + '_position')
 
             matin = loadmat(file)
             tt = matin['twhl_norm'][:, 0]
             exp_times = find_discontinuities(tt)
 
-            pos_data_norm = matin['twhl_norm'][:, 1:]
+            if 'conversion' in task_type:
+                conversion = task_type['conversion']
+            else:
+                conversion = np.nan
 
-            norm_conversion = .65 / (np.max(pos_data_norm[:, 0])
-                                     - np.min(pos_data_norm[:, 0]))
+            for pos_type in ('twhl_norm', 'twhl_linearized'):
+                if pos_type in matin:
+                    pos_data_norm = matin[pos_type][:, 1:]
 
-            spatial_series_object = SpatialSeries(
-                name=label + '_norm_spatial_series',
-                data=H5DataIO(pos_data_norm, compression='gzip'),
-                reference_frame='unknown', conversion=norm_conversion,
-                resolution=np.nan,
-                timestamps=H5DataIO(tt, compression='gzip'))
+                    spatial_series_object = SpatialSeries(
+                        name=label + '_{}_spatial_series'.format(pos_type),
+                        data=H5DataIO(pos_data_norm, compression='gzip'),
+                        reference_frame='unknown', conversion=conversion,
+                        resolution=np.nan,
+                        timestamps=H5DataIO(tt, compression='gzip'))
+                    pos_obj.add_spatial_series(spatial_series_object)
 
-            if 'twhl_linearized' in matin:
-                print('loading linearized position...', end='', flush=True)
-                pos_data_linearized = matin['twhl_linearized'][:, 1:]
-
-                # each arm is 102 cm. This converts to meters
-                lin_conversion = 2.04 / (np.nanmax(pos_data_linearized[:, 1])
-                                         - np.nanmin(pos_data_linearized[:, 1]))
-
-                spatial_series_object = [spatial_series_object] + [SpatialSeries(
-                    name=label + '_linearized_spatial_series',
-                    data=H5DataIO(pos_data_linearized, compression='gzip'),
-                    reference_frame='unknown', conversion=lin_conversion,
-                    resolution=np.nan,
-                    timestamps=H5DataIO(tt, compression='gzip'))]
-
-            pos_obj = Position(name=label + '_position',
-                               spatial_series=spatial_series_object)
-            check_module(nwbfile, 'behavior', 'description').add_container(pos_obj)
+            check_module(nwbfile, 'behavior', 'contains processed behavioral data').add_data_interface(pos_obj)
             for i, window in enumerate(exp_times):
                 nwbfile.add_epoch(start_time=window[0], stop_time=window[1],
                                   label=label + '_' + str(i))
@@ -277,8 +277,6 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     celltype_ids = matin.fineCellType.ravel()[this_file]
     region_ids = matin.region.ravel()[this_file]
     global_ids = matin.unitID.ravel()[this_file]
-    shank_ids = matin.unitIDshank.ravel()[this_file] - 2  # 0 and 1 are noised
-    shanks = matin.shank.ravel()[this_file]
 
     celltype_names = []
     for celltype_id, region_id in zip(celltype_ids, region_ids):

@@ -13,13 +13,14 @@ from to_nwb.utils import check_module
 import sys
 
 
-def read_ragged_array(struct, x):
+def read_ragged_array(struct, i=None, gid=None):
     """Read item x from ragged array STRUCT
 
     Parameters
     ----------
     struct: h5py.Group
-    x: int
+    gid: int (optional)
+    i: int (optional)
 
     Returns
     -------
@@ -27,14 +28,21 @@ def read_ragged_array(struct, x):
     np.array
 
     """
+    if i is not None and gid is not None:
+        raise ValueError('only i or gid can be supplied')
+    if i is None and gid is None:
+        return np.array([read_ragged_array(struct, i)
+                         for i in tqdm(struct['Cell Index'][:])])
+    if gid:
+        if 'Cell Index' in struct:
+            i = np.argmax(struct['Cell Index'][:] == gid)[0]
+        else:
+            i = gid
 
-    if 'Cell Index' in struct:
-        x = np.where(struct['Cell Index'][:] == x)[0]
+    i = int(i)
 
-    x = int(x)
-
-    start = struct['Attribute Pointer'][x]
-    stop = struct['Attribute Pointer'][x+1]
+    start = struct['Attribute Pointer'][i]
+    stop = struct['Attribute Pointer'][i+1]
 
     return struct['Attribute Value'][start:stop].astype(float)
 
@@ -95,13 +103,12 @@ def write_position(nwbfile, f, name='Trajectory 100'):
     return behavior_mod
 
 
-def neuroh5_to_nwb(fpath='/Users/bendichter/Desktop/Soltesz/data/DG_PP_features_12142018.h5',
-                   out_path=None):
+def neuroh5_to_nwb(fpath, out_path=None):
     """
 
     Parameters
     ----------
-    fpath: str
+    fpath: str | path
         path of neuroh5 file
     out_path: str (optional)
         where the NWB file is saved
@@ -135,7 +142,7 @@ def neuroh5_to_nwb(fpath='/Users/bendichter/Desktop/Soltesz/data/DG_PP_features_
 
 
 def main(argv):
-    neuroh5_to_nwb('/Users/bendichter/Desktop/Soltesz/data/DG_PP_spikes_101718.h5')
+    neuroh5_to_nwb('/Users/bendichter/Desktop/Soltesz/data/DG_PP_spiketrain_12142018.h5')
 
 
 if __name__ == "__main__":

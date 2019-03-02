@@ -56,6 +56,18 @@ def get_reference_elec(exp_sheet_path, date, b=False):
     return out
 
 
+def get_max_electrodes(nwbfile, session_path):
+    elec_ids = []
+    for shankn in range(len(ns.get_shank_channels(session_path))):
+        df = ns.get_clusters_single_shank(session_path, shankn + 1)
+        electrode_group = nwbfile.electrode_groups['shank' + str(shankn + 1)]
+        # as a temporary solution, take first channel from shank as max channel
+        elec_idx = np.argmax(np.array(nwbfile.electrodes['group']) == electrode_group)
+        for i in range(len(set(df['id']))):
+            elec_ids.append(elec_idx)
+    return elec_ids
+
+
 def parse_states(fpath):
 
     state_map = {'H': 'Home', 'M': 'Maze', 'St': 'LDstim',
@@ -82,7 +94,7 @@ def parse_states(fpath):
 
 
 def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/YutaMouse41/YutaMouse41-150903',
-             subject_xls=None, stub=True):
+             subject_xls=None, include_spike_waveforms=True, stub=True):
 
     subject_path, session_name = os.path.split(session_path)
     fpath_base = os.path.split(subject_path)[0]
@@ -168,7 +180,11 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     data = np.dstack(all_lfp_phases)
     print('done.', flush=True)
 
-    decomp_series = DecompositionSeries(name='LFPSpectralAnalysis',
+    if include_spike_waveforms:
+        for shankn in np.arange(1, 9, dtype=int):
+            ns.write_spike_waveforms(nwbfile, session_path, shankn, stub=stub)
+
+    decomp_series = DecompositionSeries(name='LFPDecompositionSeries',
                                         description='Theta and Gamma phase for reference LFP',
                                         data=data, rate=lfp_fs,
                                         source_timeseries=lfp_ts,
@@ -178,7 +194,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
 
     check_module(nwbfile, 'ecephys', 'ecephys description').add_data_interface(decomp_series)
 
-    ns.write_events(nwbfile, session_path)
+    [nwbfile.add_stimulus(x) for x in ns.get_events(session_path)]
 
     # create epochs corresponding to experiments/environments for the mouse
     task_types = ['OpenFieldPosition_ExtraLarge', 'OpenFieldPosition_New_Curtain',
@@ -276,15 +292,23 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
         else:
             celltype_names.append(celltype_dict[celltype_id])
 
-    nwbfile.add_unit_column('cell_type', 'name of cell type')
-    nwbfile.add_unit_column('shank', '1-indexed shank number')
-    nwbfile.add_unit_column('global_id', 'global id for cell for entire experiment')
+    custom_unit_columns = [
+        {
+            'name': 'cell_type',
+            'description': 'name of cell type',
+            'data': celltype_names},
+        {
+            'name': 'global_id',
+            'description': 'global id for cell for entire experiment',
+            'data': global_ids},
+        {
+            'name': 'max_electrode',
+            'description': 'electrode that has the maximum amplitude of the waveform',
+            'data': get_max_electrodes(nwbfile, session_path),
+            'table': nwbfile.electrodes
+        }]
 
-    for unit_id, celltype, shank, shank_id in zip(global_ids, celltype_names, shanks, shank_ids):
-        df = ns.get_clusters_single_shank(session_path, shank)
-        spike_times = df['time'][df['id'] == shank_id].values
-        nwbfile.add_unit(global_id=unit_id, cell_type=celltype, shank=shank,
-                         spike_times=spike_times)
+    ns.add_units(nwbfile, session_path, custom_unit_columns)
 
     trialdata_path = os.path.join(session_path, session_name + '__EightMazeRun.mat')
     if os.path.isfile(trialdata_path):
@@ -325,11 +349,13 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
         table = TimeIntervals(name='states', description='sleep states of animal')
         table.add_column(name='label', description='sleep state')
 
+        data = []
         for name in matin.dtype.names:
             for row in matin[name][0][0]:
-                table.add_row(start_time=row[0], stop_time=row[1], label=name)
+                data.append({'start_time': row[0], 'stop_time': row[1], 'label': name})
+        [table.add_row(**row) for row in sorted(data, key=lambda x: x['start_time'])]
 
-        check_module(nwbfile, 'behavior', 'description').add_container(table)
+        check_module(nwbfile, 'behavior', 'contains behavioral data').add_data_interface(table)
 
     if stub:
         out_fname = session_path + '_stub.nwb'

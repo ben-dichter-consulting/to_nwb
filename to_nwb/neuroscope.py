@@ -131,7 +131,7 @@ def add_position_data(nwbfile, session_path, fs=1250./32.,
                       resolution=np.nan))
 
     nwbfile.add_acquisition(
-        SpatialSeries('position sensor1',
+        SpatialSeries('position_sensor1',
                       H5DataIO(df[['x1', 'y1']].values, compression='gzip'),
                       'unknown', description='raw sensor data from sensor 1',
                       timestamps=H5DataIO(df.index.values, compression='gzip'),
@@ -382,7 +382,7 @@ def write_lfp(nwbfile, data, fs, name='LFP', description='local field potential 
         rate=fs, resolution=np.nan)
 
     ecephys_mod = check_module(
-        nwbfile, 'ecephys', 'intermediate data from extracellular electrophysiology recordings, e.g. LFP')
+        nwbfile, 'ecephys', 'intermediate data from extracellular electrophysiology recordings, e.g., LFP')
 
     if 'LFP' not in ecephys_mod.data_interfaces:
         ecephys_mod.add_data_interface(LFP(name='LFP'))
@@ -412,6 +412,40 @@ def add_lfp(nwbfile, session_path, name='LFP', description='local field potentia
     shank_channels = get_shank_channels(session_path)
     all_shank_channels = np.concatenate(shank_channels)
     write_lfp(nwbfile, data[:, all_shank_channels], fs, name, description)
+
+
+def get_events(session_path, suffixes=None):
+    """
+    Parameters
+    ----------
+    session_path: str
+    suffixes: Iterable(str), optional
+        The 3-letter names for the events to write. If None, detect all in session_path
+
+    """
+    session_name = os.path.split(session_path)[1]
+
+    if suffixes is None:
+        evt_files = glob(os.path.join(session_path, session_name) + '.evt.*') + \
+                    glob(os.path.join(session_path, session_name) + '.*.evt')
+    else:
+        evt_files = [os.path.join(session_path, session_name + s)
+                     for s in suffixes]
+
+    out = []
+    for evt_file in evt_files:
+        parts = os.path.split(evt_file)[1].split('.')
+        if parts[-1] == 'evt':
+            name = '.'.join(parts[1:-1])
+        else:
+            name = parts[-1]
+        df = pd.read_csv(evt_file, sep='\t', names=('time', 'desc'))
+        if len(df):
+            timestamps = df.values[:, 0].astype(float) / 1000
+            data = df['desc'].values
+            annotation_series = AnnotationSeries(name=name, data=data, timestamps=timestamps)
+            out.append(annotation_series)
+    return out
 
 
 def write_events(nwbfile, session_path, suffixes=None, module=None):
@@ -451,7 +485,7 @@ def write_events(nwbfile, session_path, suffixes=None, module=None):
             module.add_data_interface(annotation_series)
 
 
-def write_spike_waveforms(nwbfile, session_path, shankn):
+def write_spike_waveforms(nwbfile, session_path, shankn, stub=False, compression='gzip'):
     """
 
     Parameters
@@ -459,6 +493,9 @@ def write_spike_waveforms(nwbfile, session_path, shankn):
     nwbfile: pynwb.NWBFiles
     session_path: str
     shankn: int
+    stub: bool, optional
+        default: False
+    compression: str (optional)
 
     Returns
     -------
@@ -470,36 +507,64 @@ def write_spike_waveforms(nwbfile, session_path, shankn):
 
     group = nwbfile.electrode_groups['shank' + str(shankn)]
     elec_idx = list(np.where(np.array(nwbfile.ec_electrodes['group']) == group)[0])
-    table_region = nwbfile.create_electrode_table_region(elec_idx, group.name + 'region')
+    table_region = nwbfile.create_electrode_table_region(elec_idx, group.name + ' region')
 
     nchan = len(elec_idx)
     soup = load_xml(xml_filepath)
-    nsamps = float(soup.spikes.nSamples.string)
-    spk_file = os.path.join(session_path, session_name + '.spk.' + str(shankn))
-    spks = np.fromfile(spk_file, dtype=np.int16).reshape(-1, int(nsamps), nchan)
+    nsamps = int(soup.spikes.nSamples.string)
 
-    spike_times = read_spike_times(session_path, shankn)
+    if stub:
+        spks = np.random.randn(10, nsamps, nchan)
+        spike_times = np.arange(10)
+    else:
+        spk_file = os.path.join(session_path, session_name + '.spk.' + str(shankn))
+        if not os.path.isfile(spk_file):
+            print('spike waveforms for shank{} not found'.format(shankn))
+            return
+        spks = np.fromfile(spk_file, dtype=np.int16).reshape(-1, nsamps, nchan)
+        spike_times = read_spike_times(session_path, shankn)
+    if compression:
+        data = H5DataIO(spks, compression=compression)
+    else:
+        data = spks
 
-    spike_event_series = SpikeEventSeries(name='SpikeEventSeries' + str(shankn), data=spks, timestamps=spike_times,
+    spike_event_series = SpikeEventSeries(name='SpikeEventSeries' + str(shankn),
+                                          data=data,
+                                          timestamps=spike_times,
                                           electrodes=table_region)
 
-    if 'shank' + str(shankn) in nwbfile.electrode_groups:
-        nwbfile.electrode_groups['shank' + str(shankn)].event_waveform = EventWaveform(
-            spike_event_series=spike_event_series)
 
-    check_module(nwbfile, 'ecehpys').add_data_interface(spike_event_series)
+    #if 'shank' + str(shankn) in nwbfile.electrode_groups:
+    #    nwbfile.electrode_groups['shank' + str(shankn)].event_waveform = EventWaveform(
+    #        spike_event_series=spike_event_series)
+
+    check_module(nwbfile, 'ecephys').add_data_interface(spike_event_series)
 
 
-def add_units(nwbfile, session_path, shankn):
-    electrode_group = nwbfile.electrode_groups['shank' + str(shankn)]
+def add_units(nwbfile, session_path, custom_cols=None):
+    """
 
-    if nwbfile.units is None:
-        nwbfile.add_unit_column('shank_id', '0-indexed id of cluster of shank')
+    Parameters
+    ----------
+    nwbfile: NWBFile
+    session_path: str
+    custom_cols: list(dict), optional
+        [{name, description, data, kwargs}]
 
-    channel_groups = get_channel_groups(session_path)
-    for shankn in range(len(channel_groups)):
+    Returns
+    -------
+
+    """
+
+    nwbfile.add_unit_column('shank_id', '0-indexed id of cluster of shank')
+
+    for shankn in range(len(get_shank_channels(session_path))):
         df = get_clusters_single_shank(session_path, shankn + 1)
+        electrode_group = nwbfile.electrode_groups['shank' + str(shankn + 1)]
         for shank_id, idf in df.groupby('id'):
             nwbfile.add_unit(spike_times=idf['time'].values, shank_id=shank_id, electrode_group=electrode_group)
+
+    if custom_cols:
+        [nwbfile.add_unit_column(**x) for x in custom_cols]
 
     return nwbfile

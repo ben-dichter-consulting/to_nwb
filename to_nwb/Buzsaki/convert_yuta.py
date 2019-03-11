@@ -37,7 +37,11 @@ task_types = [
 ]
 
 
-def get_reference_elec(exp_sheet_path, date, b=False):
+def get_reference_elec(exp_sheet_path, hilus_csv_path, date, session_id, b=False):
+    df = pd.read_csv(hilus_csv_path)
+    if session_id in df['session name']:
+        return df[df['session name'] == session_id]['hilus Ch'].values[0]
+
     if b:
         date = date.strftime("%-m/%-d/%Y") + 'b'
     try:
@@ -107,15 +111,15 @@ def parse_states(fpath):
 def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/YutaMouse41/YutaMouse41-150903',
              subject_xls=None, include_spike_waveforms=True, stub=True):
 
-    subject_path, session_name = os.path.split(session_path)
+    subject_path, session_id = os.path.split(session_path)
     fpath_base = os.path.split(subject_path)[0]
-    identifier = session_name
-    mouse_number = session_name[9:11]
-    if '-' in session_name:
-        subject_id, date_text = session_name.split('-')
+    identifier = session_id
+    mouse_number = session_id[9:11]
+    if '-' in session_id:
+        subject_id, date_text = session_id.split('-')
         b = False
     else:
-        subject_id, date_text = session_name.split('b')
+        subject_id, date_text = session_id.split('b')
         b = True
 
     if subject_xls is None:
@@ -146,7 +150,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
                       session_start_time=session_start_time.astimezone(),
                       file_create_date=datetime.now().astimezone(),
                       experimenter='Yuta Senzai',
-                      session_id=session_name,
+                      session_id=session_id,
                       institution='NYU',
                       lab='Buzsaki',
                       subject=subject,
@@ -159,20 +163,20 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     all_shank_channels = np.concatenate(shank_channels)
 
     print('setting up electrodes...', end='', flush=True)
-    lfp_channel = get_reference_elec(subject_xls, session_start_time, b=b)
-    if lfp_channel is not None and np.isfinite(lfp_channel):
-        custom_column = [{'name': 'theta_reference',
-                          'description': 'this electrode was used to calculate LFP canonical bands',
-                          'data': all_shank_channels == lfp_channel}]
-        ns.write_electrode_table(nwbfile, session_path, custom_columns=custom_column)
-    else:
-        ns.write_electrode_table(nwbfile, session_path)
+    hilus_csv_path = os.path.join(fpath_base, 'early_session_hilus_chans.csv')
+    lfp_channel = get_reference_elec(subject_xls, hilus_csv_path, session_start_time, session_id, b=b)
+    print(lfp_channel)
+    custom_column = [{'name': 'theta_reference',
+                      'description': 'this electrode was used to calculate LFP canonical bands',
+                      'data': all_shank_channels == lfp_channel}]
+    ns.write_electrode_table(nwbfile, session_path, custom_columns=custom_column)
 
     print('reading LFPs...', end='', flush=True)
     lfp_fs, all_channels_data = ns.read_lfp(session_path, stub=stub)
 
     lfp_data = all_channels_data[:, all_shank_channels]
     print('writing LFPs...', flush=True)
+    # lfp_data[:int(len(lfp_data)/4)]
     lfp_ts = ns.write_lfp(nwbfile, lfp_data, lfp_fs, name='lfp',
                           description='lfp signal for all shank electrodes')
 
@@ -209,9 +213,9 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
 
     # create epochs corresponding to experiments/environments for the mouse
 
-    sleep_state_fpath = os.path.join(session_path, '{}--StatePeriod.mat'.format(session_name))
+    sleep_state_fpath = os.path.join(session_path, '{}--StatePeriod.mat'.format(session_id))
 
-    exist_pos_data = any(os.path.isfile(os.path.join(session_path, '{}__{}.mat'.format(session_name, task_type['name'])))
+    exist_pos_data = any(os.path.isfile(os.path.join(session_path, '{}__{}.mat'.format(session_id, task_type['name'])))
                          for task_type in task_types)
 
     if exist_pos_data:
@@ -220,7 +224,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     for task_type in task_types:
         label = task_type['name']
 
-        file = os.path.join(session_path, session_name + '__' + label + '.mat')
+        file = os.path.join(session_path, session_id + '__' + label + '.mat')
         if os.path.isfile(file):
             print('loading position for ' + label + '...', end='', flush=True)
 
@@ -273,7 +277,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
 
     # regions: 3: 'CA3', 4: 'DG'
 
-    this_file = matin.fname == session_name
+    this_file = matin.fname == session_id
     celltype_ids = matin.fineCellType.ravel()[this_file]
     region_ids = matin.region.ravel()[this_file]
     global_ids = matin.unitID.ravel()[this_file]
@@ -308,7 +312,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
 
     ns.add_units(nwbfile, session_path, custom_unit_columns)
 
-    trialdata_path = os.path.join(session_path, session_name + '__EightMazeRun.mat')
+    trialdata_path = os.path.join(session_path, session_id + '__EightMazeRun.mat')
     if os.path.isfile(trialdata_path):
         trials_data = loadmat(trialdata_path)['EightMazeRun']
 
@@ -327,7 +331,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
             nwbfile.add_trial(start_time=trial_data[0], stop_time=trial_data[1], condition=cond,
                               error_run=trial_data[4], stim_run=trial_data[5], both_visit=trial_data[6])
     """
-    mono_syn_fpath = os.path.join(session_path, session_name+'-MonoSynConvClick.mat')
+    mono_syn_fpath = os.path.join(session_path, session_id+'-MonoSynConvClick.mat')
 
     matin = loadmat(mono_syn_fpath)
     exc = matin['FinalExcMonoSynID']

@@ -19,6 +19,59 @@ from ..utils import check_module
 import to_nwb.neuroscope as ns
 from to_nwb.utils import find_discontinuities
 
+
+# taken from ReadMe
+celltype_dict = {
+    0: 'unknown',
+    1: 'granule cells (DG) or pyramidal cells (CA3)  (need to use region info. see below.)',
+    2: 'mossy cell',
+    3: 'narrow waveform cell',
+    4: 'optogenetically tagged SST cell',
+    5: 'wide waveform cell (narrower, exclude opto tagged SST cell)',
+    6: 'wide waveform cell (wider)',
+    8: 'positive waveform unit (non-bursty)',
+    9: 'positive waveform unit (bursty)',
+    10: 'positive negative waveform unit'
+}
+
+
+def get_UnitFeatureCell_features(fpath_base, session_id, session_path):
+    """Load features from matlab file. Handle occasional mismatches
+
+    Parameters
+    ----------
+    fpath_base: str
+    session_id: str
+
+    Returns
+    -------
+    list
+
+    """
+
+    cols_to_get = ('fineCellType', 'region', 'unitID', 'unitIDshank', 'shank')
+    matin = loadmat(os.path.join(fpath_base, 'DG_all_6__UnitFeatureSummary_add.mat'),
+                    struct_as_record=False)['UnitFeatureCell'][0][0]
+
+    nshanks = len(ns.get_shank_channels(session_path))
+    all_ids = []
+    all_shanks = []
+    for shankn in range(1, nshanks + 1):
+        ids = np.unique(ns.read_spike_clustering(session_path, shankn))
+        ids = ids[~np.isin(ids, (0, 1))]
+        all_ids.append(ids)
+        all_shanks.append(np.ones(len(ids), dtype=int) * shankn)
+    np.hstack(all_ids)
+    np.hstack(all_shanks)
+    clu_df = pd.DataFrame(
+        {'unitIDshank': np.hstack(all_ids), 'shank': np.hstack(all_shanks)})
+
+    this_file = matin.fname == session_id
+    mat_df = pd.DataFrame({col: getattr(matin, col)[this_file].ravel() for col in cols_to_get})
+
+    return pd.merge(clu_df, mat_df, how='left', on=('unitIDshank', 'shank'))
+
+
 # value taken from Yuta's spreadsheet
 special_electrode_dict = {'ch_wait': 79, 'ch_arm': 78, 'ch_solL': 76,
                           'ch_solR': 77, 'ch_dig1': 65, 'ch_dig2': 68,
@@ -73,7 +126,8 @@ def get_reference_elec(exp_sheet_path, hilus_csv_path, date, session_id, b=False
 
 def get_max_electrodes(nwbfile, session_path):
     elec_ids = []
-    for shankn in np.arange(len(ns.get_shank_channels(session_path)), dtype=int) + 1:
+    nshanks = len(ns.get_shank_channels(session_path))
+    for shankn in np.arange(1, nshanks + 1, dtype=int):
         df = ns.get_clusters_single_shank(session_path, shankn)
         electrode_group = nwbfile.electrode_groups['shank' + str(shankn)]
         # as a temporary solution, take first channel from shank as max channel
@@ -261,33 +315,14 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
                                   label=label + '_' + str(i))
             print('done.')
 
-    # load celltypes
-    matin = loadmat(os.path.join(fpath_base, 'DG_all_6__UnitFeatureSummary_add.mat'),
-                    struct_as_record=False)['UnitFeatureCell'][0][0]
-
-    # taken from ReadMe
-    celltype_dict = {
-        0: 'unknown',
-        1: 'granule cells (DG) or pyramidal cells (CA3)  (need to use region info. see below.)',
-        2: 'mossy cell',
-        3: 'narrow waveform cell',
-        4: 'optogenetically tagged SST cell',
-        5: 'wide waveform cell (narrower, exclude opto tagged SST cell)',
-        6: 'wide waveform cell (wider)',
-        8: 'positive waveform unit (non-bursty)',
-        9: 'positive waveform unit (bursty)',
-        10: 'positive negative waveform unit'
-    }
-
+    # there are occasional mismatches between the matlab struct and the neuroscope files
     # regions: 3: 'CA3', 4: 'DG'
 
-    this_file = matin.fname == session_id
-    celltype_ids = matin.fineCellType.ravel()[this_file]
-    region_ids = matin.region.ravel()[this_file]
-    global_ids = matin.unitID.ravel()[this_file]
+    df_unit_features = get_UnitFeatureCell_features(fpath_base, session_id, session_path)
 
     celltype_names = []
-    for celltype_id, region_id in zip(celltype_ids, region_ids):
+    for celltype_id, region_id in zip(df_unit_features['fineCellType'].values,
+                                      df_unit_features['region'].values):
         if celltype_id == 1:
             if region_id == 3:
                 celltype_names.append('pyramidal cell')
@@ -295,6 +330,8 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
                 celltype_names.append('granule cell')
             else:
                 raise Exception('unknown type')
+        elif not np.isfinite(celltype_id):
+            celltype_names.append('missing')
         else:
             celltype_names.append(celltype_dict[celltype_id])
 
@@ -306,7 +343,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
         {
             'name': 'global_id',
             'description': 'global id for cell for entire experiment',
-            'data': global_ids},
+            'data': df_unit_features['unitID'].values},
         {
             'name': 'max_electrode',
             'description': 'electrode that has the maximum amplitude of the waveform',

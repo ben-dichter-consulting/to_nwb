@@ -39,7 +39,7 @@ task_types = [
 
 def get_reference_elec(exp_sheet_path, hilus_csv_path, date, session_id, b=False):
     df = pd.read_csv(hilus_csv_path)
-    if session_id in df['session name']:
+    if session_id in df['session name'].values:
         return df[df['session name'] == session_id]['hilus Ch'].values[0]
 
     if b:
@@ -135,8 +135,8 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     subject_data = {}
     for key in ['genotype', 'DOB', 'implantation', 'Probe', 'Surgery', 'virus injection', 'mouseID']:
         names = df.iloc[:, 0]
-        if key in names:
-            subject_data[key] = df.iloc[np.argmax(names == key), 1].values[0]
+        if key in names.values:
+            subject_data[key] = df.iloc[np.argmax(names == key), 1]
 
     if isinstance(subject_data['DOB'], datetime):
         age = session_start_time - subject_data['DOB']
@@ -198,8 +198,10 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     print('done.', flush=True)
 
     if include_spike_waveforms:
+        print('writing waveforms...', end='', flush=True)
         for shankn in np.arange(1, 9, dtype=int):
             ns.write_spike_waveforms(nwbfile, session_path, shankn, stub=stub)
+        print('done.', flush=True)
 
     decomp_series = DecompositionSeries(name='LFPDecompositionSeries',
                                         description='Theta and Gamma phase for reference LFP',

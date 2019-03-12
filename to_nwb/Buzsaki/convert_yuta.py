@@ -133,8 +133,10 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     df = pd.read_excel(subject_xls)
 
     subject_data = {}
-    for key in ['genotype', 'DOB', 'implantation', 'Probe']:
-        subject_data[key] = df.iloc[np.where(df.iloc[:, 0] == key)[0], 1].values[0]
+    for key in ['genotype', 'DOB', 'implantation', 'Probe', 'Surgery', 'virus injection', 'mouseID']:
+        names = df.iloc[:, 0]
+        if key in names:
+            subject_data[key] = df.iloc[np.argmax(names == key), 1].values[0]
 
     if isinstance(subject_data['DOB'], datetime):
         age = session_start_time - subject_data['DOB']

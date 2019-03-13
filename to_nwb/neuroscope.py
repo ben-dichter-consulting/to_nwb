@@ -557,10 +557,11 @@ def add_units(nwbfile, session_path, custom_cols=None):
     """
 
     nwbfile.add_unit_column('shank_id', '0-indexed id of cluster of shank')
+    nshanks = len(get_shank_channels(session_path))
 
-    for shankn in range(len(get_shank_channels(session_path))):
-        df = get_clusters_single_shank(session_path, shankn + 1)
-        electrode_group = nwbfile.electrode_groups['shank' + str(shankn + 1)]
+    for shankn in range(1, nshanks + 1):
+        df = get_clusters_single_shank(session_path, shankn)
+        electrode_group = nwbfile.electrode_groups['shank' + str(shankn)]
         for shank_id, idf in df.groupby('id'):
             nwbfile.add_unit(spike_times=idf['time'].values, shank_id=shank_id, electrode_group=electrode_group)
 

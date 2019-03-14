@@ -1,5 +1,4 @@
 import os
-from functools import partialmethod
 
 from datetime import datetime
 import numpy as np
@@ -9,65 +8,56 @@ import h5py
 from pynwb import NWBFile, NWBHDF5IO
 from pynwb.ecephys import ElectricalSeries, LFP
 from pynwb.ophys import OpticalChannel, TwoPhotonSeries
-from pynwb.form.backends.hdf5 import H5DataIO as gzip
+from pynwb.form.backends.hdf5 import H5DataIO
 
 from to_nwb.neuroscope import get_channel_groups
-from Losonczy.lfp_helpers import loadEEG
+from to_nwb.Losonczy.lfp_helpers import loadEEG
 
-gzip.__init__ = partialmethod(gzip.__init__, compression='gzip')
 
 NA = 'THIS REQUIRED ATTRIBUTE INTENTIONALLY LEFT BLANK.'
 SHORTEN = True
 
 
-fpath = '/Users/bendichter/Desktop/Losonczy/from_sebi/example_data'
+fpath = '/Users/bendichter/Desktop/Losonczy/example_data'
 fpath_base, fname = os.path.split(fpath)
-session_description = 'Example data from Sebi'
 identifier = fname
-session_start_time = datetime(2017, 5, 4)
-institution = 'Columbia'
-lab = 'Losonczy'
 
-
-nwbfile = NWBFile(session_description, identifier,
-                  session_start_time, institution=institution, lab=lab)
-all_ts = []
+nwbfile = NWBFile('Example data from Sebi', identifier,
+                  session_start_time=datetime(2017, 5, 4),
+                  institution='Columbia',
+                  lab='Losonczy')
 
 eeg_base_name = os.path.join(fpath, 'LFP', 'svr009_Day2_FOV1_170504_131823')
 eeg_dict = loadEEG(eeg_base_name)
 
 lfp_xml_fpath = eeg_base_name + '.xml'
-channel_groups = get_channel_groups(lfp_xml_fpath)
+channel_groups = get_channel_groups(xml_filepath=lfp_xml_fpath)
 lfp_channels = channel_groups[0]
 lfp_fs = eeg_dict['sampleFreq']
 nchannels = eeg_dict['nChannels']
 
-
 lfp_signal = eeg_dict['EEG'][:, lfp_channels]
 
-device_name = 'LFP device'
-device = nwbfile.create_device(device_name)
+device = nwbfile.create_device('implant')
 electrode_group = nwbfile.create_electrode_group(
-    name=device_name + '_electrodes',
-    description=device_name,
+    name='electrode_group',
+    description='implant_electrodes',
     device=device,
     location='unknown')
 
 for channel in channel_groups[0]:
-    nwbfile.add_electrode(channel,
-                          np.nan, np.nan, np.nan,  # position?
+    nwbfile.add_electrode(np.nan, np.nan, np.nan,  # position?
                           imp=np.nan,
                           location='unknown',
                           filtering='unknown',
-                          description='lfp electrode {}'.format(channel),
                           group=electrode_group)
 
 
 lfp_table_region = nwbfile.create_electrode_table_region(list(range(4)),
                                                          'lfp electrodes')
 
-lfp_elec_series = ElectricalSeries('lfp', 'lfp',
-                                   gzip(lfp_signal),
+lfp_elec_series = ElectricalSeries('lfp',
+                                   H5DataIO(lfp_signal, compression='gzip'),
                                    lfp_table_region,
                                    conversion=np.nan,
                                    starting_time=0.0,
@@ -80,12 +70,9 @@ nwbfile.add_acquisition(LFP(electrical_series=lfp_elec_series))
 optical_channel = OpticalChannel(
     name='Optical Channel',
     description=NA,
-    emission_lambda=NA,
-)
+    emission_lambda=np.nan)
 
-
-imaging_h5_filepath = '/Users/bendichter/Desktop/Losonczy/from_sebi/example_data/TSeries-05042017-001_Cycle00001_Element00001.h5'
-
+imaging_h5_filepath = os.path.join(fpath, 'TSeries-05042017-001_Cycle00001_Element00001.h5')
 
 with h5py.File(imaging_h5_filepath, 'r') as f:
     if SHORTEN:
@@ -111,8 +98,8 @@ imaging_plane = nwbfile.create_imaging_plane(
     name='my_imgpln',
     optical_channel=optical_channel,
     description='unknown',
-    device='imaging_device_1', excitation_lambda='unknown',
-    imaging_rate='unknown', indicator='GFP',
+    device=device, excitation_lambda=np.nan,
+    imaging_rate=np.nan, indicator='GFP',
     location='unknown',
     manifold=np.array([]),
     conversion=1.0,
@@ -131,7 +118,7 @@ for channel_name, imaging_data in zip(channel_names, all_imaging_data):
 out_fname = 'sebi_data.nwb'
 print('writing NWB file...', end='', flush=True)
 with NWBHDF5IO(out_fname, mode='w') as io:
-    io.write(nwbfile, cache_spec=False)
+    io.write(nwbfile)
 print('done.')
 
 print('testing read...', end='', flush=True)

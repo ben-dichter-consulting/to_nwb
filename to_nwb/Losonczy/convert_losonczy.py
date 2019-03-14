@@ -15,7 +15,7 @@ from to_nwb.Losonczy.lfp_helpers import loadEEG
 
 
 NA = 'THIS REQUIRED ATTRIBUTE INTENTIONALLY LEFT BLANK.'
-SHORTEN = True
+SHORTEN = False
 
 
 fpath = '/Users/bendichter/Desktop/Losonczy/example_data'
@@ -36,7 +36,7 @@ lfp_channels = channel_groups[0]
 lfp_fs = eeg_dict['sampleFreq']
 nchannels = eeg_dict['nChannels']
 
-lfp_signal = eeg_dict['EEG'][:, lfp_channels]
+lfp_signal = eeg_dict['EEG'][lfp_channels, :].T
 
 device = nwbfile.create_device('implant')
 electrode_group = nwbfile.create_electrode_group(
@@ -56,7 +56,7 @@ for channel in channel_groups[0]:
 lfp_table_region = nwbfile.create_electrode_table_region(list(range(4)),
                                                          'lfp electrodes')
 
-lfp_elec_series = ElectricalSeries('lfp',
+lfp_elec_series = ElectricalSeries('multielectrode_recording',
                                    H5DataIO(lfp_signal, compression='gzip'),
                                    lfp_table_region,
                                    conversion=np.nan,
@@ -64,7 +64,7 @@ lfp_elec_series = ElectricalSeries('lfp',
                                    rate=lfp_fs,
                                    resolution=np.nan)
 
-nwbfile.add_acquisition(LFP(electrical_series=lfp_elec_series))
+nwbfile.add_acquisition(lfp_elec_series)
 
 
 optical_channel = OpticalChannel(
@@ -107,7 +107,7 @@ imaging_plane = nwbfile.create_imaging_plane(
     reference_frame='A frame to refer to')
 
 for channel_name, imaging_data in zip(channel_names, all_imaging_data):
-    image_series = TwoPhotonSeries(name='image',
+    image_series = TwoPhotonSeries(name='TwoPhotonSeries' + channel_name.decode(),
                                    dimension=[2], data=imaging_data,
                                    imaging_plane=imaging_plane,
                                    starting_frame=[0], timestamps=[1, 2, 3],
@@ -115,7 +115,11 @@ for channel_name, imaging_data in zip(channel_names, all_imaging_data):
                                    pmt_gain=np.nan)
     nwbfile.add_acquisition(image_series)
 
-out_fname = 'sebi_data.nwb'
+if SHORTEN:
+    out_fname = fpath + '_stub.nwb'
+else:
+    out_fname = fpath + '.nwb'
+
 print('writing NWB file...', end='', flush=True)
 with NWBHDF5IO(out_fname, mode='w') as io:
     io.write(nwbfile)
@@ -126,6 +130,3 @@ print('testing read...', end='', flush=True)
 with NWBHDF5IO(out_fname, mode='r') as io:
     io.read()
 print('done.')
-
-
-

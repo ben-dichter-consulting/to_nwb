@@ -536,7 +536,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
             decomp_series.add_band(band_mean=band_mean, band_stdev=band_stdev)
 
         hilb_mod = nwbfile.create_processing_module(
-            name='hilbert', description='holds hilbert analysis results')
+            name='ecephys', description='holds hilbert analysis results')
         hilb_mod.add_container(decomp_series)
 
         #data, rate = readhtks(hilbdir)

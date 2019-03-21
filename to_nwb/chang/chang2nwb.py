@@ -10,11 +10,10 @@ import numpy as np
 import pandas as pd
 import scipy.io as sio
 from h5py import File
-from nwbext_ecog.ecog_manual import CorticalSurfaces, ECoGSubject
+from nwbext_ecog import CorticalSurfaces, ECoGSubject
 from pynwb import NWBFile, TimeSeries, get_manager, NWBHDF5IO
 from pynwb.ecephys import ElectricalSeries
 from pynwb.behavior import BehavioralTimeSeries
-from pynwb.form.backends.hdf5 import H5DataIO
 from pynwb.image import RGBImage, RGBAImage, GrayscaleImage
 from pynwb.base import Images
 from pynwb.misc import DecompositionSeries
@@ -24,7 +23,8 @@ from scipy.io.wavfile import read as wavread
 from scipy.misc import imread
 from tqdm import tqdm
 
-from pynwb.form.data_utils import DataChunkIterator
+from hdmf.backends.hdf5 import H5DataIO
+from hdmf.data_utils import DataChunkIterator
 
 from .HTK import readHTK
 from .transcripts import parse, make_df

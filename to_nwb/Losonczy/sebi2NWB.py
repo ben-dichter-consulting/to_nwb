@@ -11,14 +11,15 @@ from tqdm import tqdm
 
 from glob import glob
 
+from hdmf.data_utils import DataChunkIterator
+from hdmf.backends.hdf5.h5_utils import H5DataIO
+
 import h5py
 import numpy as np
 from pynwb import NWBFile, NWBHDF5IO
 from pynwb.behavior import Position, BehavioralTimeSeries, BehavioralEvents
 from pynwb.ecephys import ElectricalSeries, LFP
-from pynwb.form.backends.hdf5.h5_utils import H5DataIO
 from pynwb.ophys import OpticalChannel, TwoPhotonSeries, Fluorescence, DfOverF, ImageSegmentation, CorrectedImageStack
-from pynwb.form.data_utils import DataChunkIterator
 
 
 from to_nwb.neuroscope import get_channel_groups
@@ -319,7 +320,7 @@ def main(argv):
 
     add_behavior(nwbfile, expt)
 
-    imaging_module = nwbfile.create_processing_module(name='im_analysis',
+    imaging_module = nwbfile.create_processing_module(name='ophys',
                                                       description='Data relevant to imaging')
 
     ps = add_rois(nwbfile, imaging_module, expt)

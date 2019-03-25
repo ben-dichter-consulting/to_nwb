@@ -4,6 +4,8 @@ import os
 import sys
 from datetime import datetime
 
+from hdmf.backends.hdf5.h5_utils import H5DataIO
+
 import numpy as np
 import pandas as pd
 from dateutil.parser import parse as dateparse
@@ -11,7 +13,6 @@ from ephys_analysis.band_analysis import filter_lfp, hilbert_lfp
 from pynwb import NWBFile, NWBHDF5IO, TimeSeries
 from pynwb.behavior import SpatialSeries, Position
 from pynwb.file import Subject, TimeIntervals
-from pynwb.form.backends.hdf5.h5_utils import H5DataIO
 from pynwb.misc import DecompositionSeries
 from scipy.io import loadmat
 from ..utils import check_module

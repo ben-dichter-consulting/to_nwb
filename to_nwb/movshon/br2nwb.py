@@ -6,9 +6,9 @@ import numpy as np
 from pynwb import NWBFile, NWBHDF5IO, TimeSeries
 from pynwb.ecephys import ElectricalSeries, LFP
 from pynwb.misc import UnitTimes
-from pynwb.form.data_utils import DataChunkIterator
+from hdmf.data_utils import DataChunkIterator
 from tqdm import tqdm
-from pynwb.form.backends.hdf5 import H5DataIO
+from hdmf.backends.hdf5 import H5DataIO
 
 from brpylib import NevFile
 

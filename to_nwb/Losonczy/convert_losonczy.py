@@ -8,7 +8,7 @@ import h5py
 from pynwb import NWBFile, NWBHDF5IO
 from pynwb.ecephys import ElectricalSeries, LFP
 from pynwb.ophys import OpticalChannel, TwoPhotonSeries
-from pynwb.form.backends.hdf5 import H5DataIO
+from hdmf.backends.hdf5 import H5DataIO
 
 from to_nwb.neuroscope import get_channel_groups
 from to_nwb.Losonczy.lfp_helpers import loadEEG

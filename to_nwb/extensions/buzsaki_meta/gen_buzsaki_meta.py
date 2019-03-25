@@ -1,7 +1,7 @@
 from pynwb.spec import NWBDatasetSpec, NWBNamespaceBuilder, NWBGroupSpec, NWBAttributeSpec
-from pynwb.form.spec import RefSpec
+from hdmf.spec import RefSpec
 from pynwb import register_class, load_namespaces, NWBFile, NWBHDF5IO
-from pynwb.form.utils import docval
+from hdmf.utils import docval
 from pynwb.file import Subject, NWBContainer, MultiContainerInterface, NWBDataInterface
 from pynwb.device import Device
 

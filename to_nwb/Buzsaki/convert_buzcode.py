@@ -11,7 +11,7 @@ from pynwb.file import Subject
 from pynwb.behavior import SpatialSeries, Position
 from pynwb.ecephys import ElectricalSeries
 
-from pynwb.form.backends.hdf5.h5_utils import H5DataIO
+from hdmf.backends.hdf5.h5_utils import H5DataIO
 
 from to_nwb import neuroscope as ns
 
@@ -82,7 +82,7 @@ elif os.path.isfile(my_behavior_file):
 print('done.')
 
 print('setting up electrodes...', end='', flush=True)
-ns.write_electrode_table(nwbfile, session_path)
+ns.write_electrode_table(nwbfile, fpath)
 # shank electrodes
 device = nwbfile.create_device('implant', fname + '.xml')
 electrode_counter = 0

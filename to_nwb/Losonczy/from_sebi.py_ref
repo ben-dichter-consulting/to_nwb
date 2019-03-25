@@ -9,7 +9,7 @@ from pynwb.behavior import SpatialSeries, Position, BehavioralTimeSeries, Behavi
 from pynwb.ecephys import ElectricalSeries, LFP
 from pynwb.ophys import OpticalChannel, TwoPhotonSeries, Fluorescence, DfOverF, ROITable, ImageSegmentation
 from pynwb.image import ImageSeries
-from pynwb.form.backends.hdf5.h5_utils import H5DataIO
+from hdmf.backends.hdf5.h5_utils import H5DataIO
 
 from bs4 import BeautifulSoup
 

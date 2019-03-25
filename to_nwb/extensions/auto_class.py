@@ -1,6 +1,6 @@
 import re
 
-from pynwb.form.utils import docval
+from hdmf.utils import docval
 from pynwb import __NS_CATALOG
 
 from pynwb.ecephys import *

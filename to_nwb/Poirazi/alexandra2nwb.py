@@ -7,7 +7,7 @@ import numpy as np
 from dateutil.tz import tzlocal
 from pynwb import NWBFile, NWBHDF5IO
 from tqdm import tqdm
-from pynwb.form.backends.hdf5.h5_utils import H5DataIO
+from hdmf.backends.hdf5.h5_utils import H5DataIO
 from nwbext_simulation_output import CompartmentSeries, create_ragged_array
 
 

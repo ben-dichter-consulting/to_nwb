@@ -9,8 +9,8 @@ import pandas as pd
 from bs4 import BeautifulSoup
 from pynwb.behavior import SpatialSeries
 from pynwb.ecephys import ElectricalSeries, LFP, SpikeEventSeries, EventWaveform#, UnitSeries
-from pynwb.form.backends.hdf5.h5_utils import H5DataIO
-from pynwb.form.data_utils import DataChunkIterator
+from hdmf.backends.hdf5.h5_utils import H5DataIO
+from hdmf.data_utils import DataChunkIterator
 from pynwb.misc import AnnotationSeries
 from tqdm import tqdm
 

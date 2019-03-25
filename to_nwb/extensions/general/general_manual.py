@@ -2,9 +2,9 @@ from collections import Iterable
 
 from pynwb import load_namespaces, register_class, TimeSeries, register_map
 from pynwb.core import NWBDataInterface
-from pynwb.form.utils import docval, getargs, popargs, fmt_docval_args
-from pynwb.form.data_utils import AbstractDataChunkIterator, DataIO
-from pynwb.form.build import ObjectMapper
+from hdmf.utils import docval, getargs, popargs, fmt_docval_args
+from hdmf.data_utils import AbstractDataChunkIterator, DataIO
+from hdmf.build import ObjectMapper
 
 # load custom classes
 name = 'general'

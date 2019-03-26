@@ -3,10 +3,11 @@ import os
 from datetime import datetime
 import numpy as np
 import h5py
+from dateutil.tz import tzlocal
 
 
 from pynwb import NWBFile, NWBHDF5IO
-from pynwb.ecephys import ElectricalSeries, LFP
+from pynwb.ecephys import ElectricalSeries
 from pynwb.ophys import OpticalChannel, TwoPhotonSeries
 from hdmf.backends.hdf5 import H5DataIO
 
@@ -21,9 +22,8 @@ SHORTEN = False
 fpath = '/Users/bendichter/Desktop/Losonczy/example_data'
 fpath_base, fname = os.path.split(fpath)
 identifier = fname
-
 nwbfile = NWBFile('Example data from Sebi', identifier,
-                  session_start_time=datetime(2017, 5, 4),
+                  session_start_time=datetime(2017, 5, 4, tzinfo=tzlocal()),
                   institution='Columbia',
                   lab='Losonczy')
 
@@ -108,7 +108,8 @@ imaging_plane = nwbfile.create_imaging_plane(
 
 for channel_name, imaging_data in zip(channel_names, all_imaging_data):
     image_series = TwoPhotonSeries(name='TwoPhotonSeries' + channel_name.decode(),
-                                   dimension=[2], data=imaging_data,
+                                   dimension=[2],
+                                   data=H5DataIO(imaging_data, compression='gzip'),
                                    imaging_plane=imaging_plane,
                                    starting_frame=[0], timestamps=[1, 2, 3],
                                    scan_line_rate=np.nan,

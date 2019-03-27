@@ -539,15 +539,6 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
             name='ecephys', description='holds hilbert analysis results')
         hilb_mod.add_container(decomp_series)
 
-        #data, rate = readhtks(hilbdir)
-        # you must have 1 or more of the following:
-        #   data (analytic amplitude),
-        #   real_data,
-        #   imaginary_data,
-        ##   phase_data
-        #hs = HilbertSeries(name='hilbert_series', filter_centers=[1., 2., 3.],
-        #                   filter_sigmas=[1., 2., 3.], data=data, rate=rate, electrodes=ecog_elecs)
-
     subject = ECoGSubject(subject_id=subject_id)
 
     if include_cortical_surfaces:

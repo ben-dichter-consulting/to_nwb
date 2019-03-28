@@ -201,7 +201,7 @@ def create_cortical_surfaces(pial_files):
         vert = matin[x]['vert'][0][0]
         name = pial_file[pial_file.find('Meshes')+7:-4]
         names.append(name)
-        cortical_surfaces.create_surface(faces=tri, vertices=vert, name=name)
+        cortical_surfaces.create_surface(faces=tri.astype('uint'), vertices=vert, name=name)
     return cortical_surfaces
 
 
@@ -565,14 +565,14 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
         parseout = parse(blockpath, blockname)
         df = make_df(parseout, 0, subject_id, align_pos=1)
         nwbfile.add_trial_column(
-            'cv_transition', 'time from start to CV transition in seconds')
+            'cv_transition', 'time of CV transition in seconds')
         nwbfile.add_trial_column(
             'speak', 'if True, subject is speaking. If False, subject is listening')
         nwbfile.add_trial_column('condition', 'syllable spoken')
         for _, row in df.iterrows():
             nwbfile.add_trial(
                 start_time=row['start'], stop_time=row['stop'],
-                cv_transition=row['align'] - row['start'],
+                cv_transition=row['align'],
                 speak=row['mode'] == 'speak', condition=row['label'])
 
     # behavior

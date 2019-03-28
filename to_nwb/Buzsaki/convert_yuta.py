@@ -352,7 +352,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
             'table': nwbfile.electrodes
         }]
 
-    ns.add_units(nwbfile, session_path, custom_unit_columns)
+    ns.add_units(nwbfile, session_path, custom_unit_columns, max_shanks=8)
 
     trialdata_path = os.path.join(session_path, session_id + '__EightMazeRun.mat')
     if os.path.isfile(trialdata_path):

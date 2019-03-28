@@ -541,15 +541,17 @@ def write_spike_waveforms(nwbfile, session_path, shankn, stub=False, compression
     check_module(nwbfile, 'ecephys').add_data_interface(spike_event_series)
 
 
-def add_units(nwbfile, session_path, custom_cols=None):
+def add_units(nwbfile, session_path, custom_cols=None, max_shanks=8):
     """
 
     Parameters
     ----------
-    nwbfile: NWBFile
+    nwbfile: pynwb.NWBFile
     session_path: str
     custom_cols: list(dict), optional
         [{name, description, data, kwargs}]
+    max_shanks: int
+        only take the first <max_shanks> channel groups
 
     Returns
     -------
@@ -558,6 +560,7 @@ def add_units(nwbfile, session_path, custom_cols=None):
 
     nwbfile.add_unit_column('shank_id', '0-indexed id of cluster of shank')
     nshanks = len(get_shank_channels(session_path))
+    nshanks = min((max_shanks, nshanks))
 
     for shankn in range(1, nshanks + 1):
         df = get_clusters_single_shank(session_path, shankn)

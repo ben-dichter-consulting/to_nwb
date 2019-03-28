@@ -36,13 +36,15 @@ celltype_dict = {
 }
 
 
-def get_UnitFeatureCell_features(fpath_base, session_id, session_path):
+def get_UnitFeatureCell_features(fpath_base, session_id, session_path, max_shanks=8):
     """Load features from matlab file. Handle occasional mismatches
 
     Parameters
     ----------
     fpath_base: str
     session_id: str
+    session_path: str
+    max_shanks: int
 
     Returns
     -------
@@ -54,7 +56,7 @@ def get_UnitFeatureCell_features(fpath_base, session_id, session_path):
     matin = loadmat(os.path.join(fpath_base, 'DG_all_6__UnitFeatureSummary_add.mat'),
                     struct_as_record=False)['UnitFeatureCell'][0][0]
 
-    nshanks = len(ns.get_shank_channels(session_path))
+    nshanks = min((max_shanks, len(ns.get_shank_channels(session_path))))
     all_ids = []
     all_shanks = []
     for shankn in range(1, nshanks + 1):

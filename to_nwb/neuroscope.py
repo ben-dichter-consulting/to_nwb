@@ -254,7 +254,8 @@ def write_unit_series(nwbfile, session_path, shankn, fs=20000.):
 
 
 def write_electrode_table(nwbfile, session_path, electrode_positions=None,
-                          impedances=None, locations=None, filterings=None, custom_columns=()):
+                          impedances=None, locations=None, filterings=None, custom_columns=(),
+                          max_shanks=None):
     """
 
     Parameters
@@ -267,11 +268,14 @@ def write_electrode_table(nwbfile, session_path, electrode_positions=None,
     filterings: array-like(dtype=str) (optional)
     custom_columns: list(dict) (optional)
         {name, description, data} for any custom columns
+    max_shanks: int | None
 
     """
     fpath_base, fname = os.path.split(session_path)
 
     shank_channels = get_shank_channels(session_path)
+    if max_shanks:
+        shank_channels = shank_channels[:max_shanks]
     nwbfile.add_electrode_column('shank_electrode_number', '1-indexed channel within a shank')
     nwbfile.add_electrode_column('amp_channel', 'order in which the channels were plugged into amp')
     for custom_column in custom_columns:

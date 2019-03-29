@@ -35,8 +35,10 @@ celltype_dict = {
     10: 'positive negative waveform unit'
 }
 
+max_shanks = 8
 
-def get_UnitFeatureCell_features(fpath_base, session_id, session_path, max_shanks=8):
+
+def get_UnitFeatureCell_features(fpath_base, session_id, session_path, max_shanks=max_shanks):
     """Load features from matlab file. Handle occasional mismatches
 
     Parameters
@@ -127,7 +129,7 @@ def get_reference_elec(exp_sheet_path, hilus_csv_path, date, session_id, b=False
     return out
 
 
-def get_max_electrodes(nwbfile, session_path, max_shanks=8):
+def get_max_electrodes(nwbfile, session_path, max_shanks=max_shanks):
     elec_ids = []
     nshanks = min((len(ns.get_shank_channels(session_path)), max_shanks))
     for shankn in np.arange(1, nshanks + 1, dtype=int):
@@ -228,7 +230,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     custom_column = [{'name': 'theta_reference',
                       'description': 'this electrode was used to calculate LFP canonical bands',
                       'data': all_shank_channels == lfp_channel}]
-    ns.write_electrode_table(nwbfile, session_path, custom_columns=custom_column)
+    ns.write_electrode_table(nwbfile, session_path, custom_columns=custom_column, max_shanks=max_shanks)
 
     print('reading LFPs...', end='', flush=True)
     lfp_fs, all_channels_data = ns.read_lfp(session_path, stub=stub)
@@ -354,7 +356,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
             'table': nwbfile.electrodes
         }]
 
-    ns.add_units(nwbfile, session_path, custom_unit_columns, max_shanks=8)
+    ns.add_units(nwbfile, session_path, custom_unit_columns, max_shanks=max_shanks)
 
     trialdata_path = os.path.join(session_path, session_id + '__EightMazeRun.mat')
     if os.path.isfile(trialdata_path):

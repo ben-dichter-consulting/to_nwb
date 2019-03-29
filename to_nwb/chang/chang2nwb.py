@@ -71,7 +71,7 @@ def add_images_to_subject(subject, subject_image_list):
     for image_path in subject_image_list:
         image_name = os.path.split(image_path)[1]
         image_data = imread(image_path)
-        kwargs = {'data': image_data, 'name': image_name, 'help': image_name}
+        kwargs = {'data': image_data, 'name': image_name}
         if len(image_data.shape) == 2:
             image = GrayscaleImage(**kwargs)
         elif image_data.shape[2] == 3:

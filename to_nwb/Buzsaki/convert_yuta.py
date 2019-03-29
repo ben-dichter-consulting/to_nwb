@@ -127,9 +127,9 @@ def get_reference_elec(exp_sheet_path, hilus_csv_path, date, session_id, b=False
     return out
 
 
-def get_max_electrodes(nwbfile, session_path):
+def get_max_electrodes(nwbfile, session_path, max_shanks=8):
     elec_ids = []
-    nshanks = len(ns.get_shank_channels(session_path))
+    nshanks = min((len(ns.get_shank_channels(session_path)), max_shanks))
     for shankn in np.arange(1, nshanks + 1, dtype=int):
         df = ns.get_clusters_single_shank(session_path, shankn)
         electrode_group = nwbfile.electrode_groups['shank' + str(shankn)]
@@ -218,7 +218,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
     print('reading and writing raw position data...', end='', flush=True)
     ns.add_position_data(nwbfile, session_path)
 
-    shank_channels = ns.get_shank_channels(session_path)
+    shank_channels = ns.get_shank_channels(session_path)[:8]
     all_shank_channels = np.concatenate(shank_channels)
 
     print('setting up electrodes...', end='', flush=True)

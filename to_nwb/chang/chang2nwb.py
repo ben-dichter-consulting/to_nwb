@@ -67,17 +67,17 @@ def add_ekg(nwbfile, ecog_path, ekg_elecs):
 
 
 def add_images_to_subject(subject, subject_image_list):
-    images = Images(name='images')
+    images = Images(name='images', description="images of subject's brain")
     for image_path in subject_image_list:
         image_name = os.path.split(image_path)[1]
         image_data = imread(image_path)
-
+        kwargs = {'data': image_data, 'name': image_name, 'help': image_name}
         if len(image_data.shape) == 2:
-            image = GrayscaleImage(data=image_data, name=image_name)
+            image = GrayscaleImage(**kwargs)
         elif image_data.shape[2] == 3:
-            image = RGBImage(data=image_data, name=image_name)
+            image = RGBImage(**kwargs)
         elif image_data.shape[3] == 4:
-            image = RGBAImage(data=image_data, name=image_name)
+            image = RGBAImage(**kwargs)
 
         images.add_image(image)
     subject.images = images
@@ -186,6 +186,9 @@ def auto_ecog(blockpath, ecog_elecs, verbose=False):
 
 
 def create_cortical_surfaces(pial_files):
+
+    if not len(pial_files):
+        return None
 
     names = []
     cortical_surfaces = CorticalSurfaces()
@@ -548,7 +551,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
         subject = add_images_to_subject(subject, subject_image_list)
 
     if external_subject:
-        subj_fpath = path.join(out_base_path, subject_id + '.nwbaux')
+        subj_fpath = path.join(out_base_path, subject_id + '.nwb')
         if not os.path.isfile(subj_fpath):
             subj_nwbfile = NWBFile(
                 session_description=subject_id, identifier=subject_id, subject=subject,
@@ -609,6 +612,36 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     # read check
     with NWBHDF5IO(outpath, manager=manager, mode='r') as io:
         io.read()
+
+
+def gen_external_subject(blockpath, imaging_path=None, outpath=None, subject_image_list=None):
+    basepath, blockname = os.path.split(blockpath)
+    subject_id = get_subject_id(blockname)
+
+    subject = ECoGSubject(subject_id=subject_id)
+
+    if subject_image_list is not None:
+        subject = add_images_to_subject(subject, subject_image_list)
+
+    if imaging_path is None:
+        subj_imaging_path = path.join(IMAGING_PATH, subject_id)
+    elif imaging_path == 'local':
+        subj_imaging_path = path.join(basepath, 'imaging')
+    else:
+        subj_imaging_path = os.path.join(imaging_path, subject_id)
+
+    mesh_path = path.join(subj_imaging_path, 'Meshes')
+    pial_files = glob.glob(path.join(mesh_path, '*pial.mat'))
+
+    create_cortical_surfaces(pial_files)
+
+    out_base_path = os.path.split(outpath)[0]
+    subj_fpath = path.join(out_base_path, subject_id + '.nwb')
+    subj_nwbfile = NWBFile(
+        session_description=subject_id, identifier=subject_id, subject=subject,
+        session_start_time=datetime(1900, 1, 1).astimezone(timezone('UTC')))
+    with NWBHDF5IO(subj_fpath, manager=manager, mode='w') as subj_io:
+        subj_io.write(subj_nwbfile)
 
 
 def main():

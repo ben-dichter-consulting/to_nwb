@@ -47,7 +47,6 @@ Convert ECoG to NWB
 
 def find_ekg_elecs(elec_metadata_file):
     elec_grp_df, coord = read_electrodes(elec_metadata_file)
-
     return np.where(elec_grp_df['device'] == 'EKG')[0]
 
 
@@ -70,6 +69,7 @@ def add_images_to_subject(subject, subject_image_list):
     images = Images(name='images', description="images of subject's brain")
     for image_path in subject_image_list:
         image_name = os.path.split(image_path)[1]
+        image_name = os.path.splitext(image_name)[0]
         image_data = imread(image_path)
         kwargs = {'data': image_data, 'name': image_name}
         if len(image_data.shape) == 2:

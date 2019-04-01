@@ -258,7 +258,8 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
 
     if include_spike_waveforms:
         print('writing waveforms...', end='', flush=True)
-        for shankn in np.arange(1, 9, dtype=int):
+        nshanks = min((max_shanks, len(ns.get_shank_channels(session_path))))
+        for shankn in np.arange(nshanks, dtype=int) + 1:
             ns.write_spike_waveforms(nwbfile, session_path, shankn, stub=stub)
         print('done.', flush=True)
 

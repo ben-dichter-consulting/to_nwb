@@ -568,7 +568,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
         parseout = parse(blockpath, blockname)
         df = make_df(parseout, 0, subject_id, align_pos=1)
         nwbfile.add_trial_column(
-            'cv_transition', 'time of CV transition in seconds')
+            'cv_transition_time', 'time of CV transition in seconds')
         nwbfile.add_trial_column(
             'speak', 'if True, subject is speaking. If False, subject is listening')
         nwbfile.add_trial_column('condition', 'syllable spoken')

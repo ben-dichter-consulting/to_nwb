@@ -76,7 +76,7 @@ def add_images_to_subject(subject, subject_image_list):
             image = GrayscaleImage(**kwargs)
         elif image_data.shape[2] == 3:
             image = RGBImage(**kwargs)
-        elif image_data.shape[3] == 4:
+        elif image_data.shape[2] == 4:
             image = RGBAImage(**kwargs)
 
         images.add_image(image)
@@ -566,17 +566,35 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
 
     if parse_transcript:
         parseout = parse(blockpath, blockname)
-        df = make_df(parseout, 0, subject_id, align_pos=1)
-        nwbfile.add_trial_column(
-            'cv_transition_time', 'time of CV transition in seconds')
-        nwbfile.add_trial_column(
-            'speak', 'if True, subject is speaking. If False, subject is listening')
-        nwbfile.add_trial_column('condition', 'syllable spoken')
-        for _, row in df.iterrows():
-            nwbfile.add_trial(
-                start_time=row['start'], stop_time=row['stop'],
-                cv_transition=row['align'],
-                speak=row['mode'] == 'speak', condition=row['label'])
+        if parse_transcript == 'CV':
+            df = make_df(parseout, 0, subject_id, align_pos=1)
+            nwbfile.add_trial_column(
+                'cv_transition_time', 'time of CV transition in seconds')
+            nwbfile.add_trial_column(
+                'speak', 'if True, subject is speaking. If False, subject is listening')
+            nwbfile.add_trial_column('condition', 'syllable spoken')
+            for _, row in df.iterrows():
+                nwbfile.add_trial(
+                    start_time=row['start'], stop_time=row['stop'],
+                    cv_transition=row['align'],
+                    speak=row['mode'] == 'speak', condition=row['label'])
+        elif parse_transcript == 'singing':
+            df = make_df(parseout, 0, subject_id, align_pos=0)
+            nwbfile.add_trial_column(
+                'speak', 'if True, subject is speaking. If False, subject is listening')
+            nwbfile.add_trial_column('condition', 'syllable spoken')
+            for _, row in df.iterrows():
+                nwbfile.add_trial(
+                    start_time=row['start'], stop_time=row['stop'],
+                    speak=row['mode'] == 'speak', condition=row['label'])
+        elif parse_transcript == 'emphasis':
+            df = pd.DataFrame(parseout)
+            nwbfile.add_trial_column(
+                'speak', 'if True, subject is speaking. If False, subject is listening')
+            for _, row in df.iterrows():
+                nwbfile.add_trial(
+                    start_time=row['start'], stop_time=row['stop'],
+                    speak=True, condition=row['label'])
 
     # behavior
     if include_intensity or include_pitch:

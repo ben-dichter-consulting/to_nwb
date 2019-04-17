@@ -185,7 +185,7 @@ def auto_ecog(blockpath, ecog_elecs, verbose=False):
     return fs, data, ecog_file
 
 
-def create_cortical_surfaces(pial_files):
+def create_cortical_surfaces(pial_files, subject_id):
 
     if not len(pial_files):
         return None
@@ -199,10 +199,12 @@ def create_cortical_surfaces(pial_files):
         elif 'mesh' in matin:
             x = 'mesh'
         else:
-            raise ValueError('Unknown structure of ' + pial_file + '.')
+            Warning('Unknown structure of ' + pial_file + '.')
+            continue
+
         tri = matin[x]['tri'][0][0] - 1
         vert = matin[x]['vert'][0][0]
-        name = pial_file[pial_file.find('Meshes')+7:-4]
+        name = os.path.split(pial_file)[1][len(subject_id) + 1:-9]
         names.append(name)
         cortical_surfaces.create_surface(faces=tri.astype('uint'), vertices=vert, name=name)
     return cortical_surfaces
@@ -545,7 +547,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     subject = ECoGSubject(subject_id=subject_id)
 
     if include_cortical_surfaces:
-        subject.cortical_surfaces = create_cortical_surfaces(pial_files)
+        subject.cortical_surfaces = create_cortical_surfaces(pial_files, subject_id)
 
     if subject_image_list is not None:
         subject = add_images_to_subject(subject, subject_image_list)
@@ -632,9 +634,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
         io.read()
 
 
-def gen_external_subject(blockpath, imaging_path=None, outpath=None, subject_image_list=None):
-    basepath, blockname = os.path.split(blockpath)
-    subject_id = get_subject_id(blockname)
+def gen_external_subject(subject_id, basepath=None, imaging_path=None, outpath=None, subject_image_list=None):
 
     subject = ECoGSubject(subject_id=subject_id)
 
@@ -651,7 +651,7 @@ def gen_external_subject(blockpath, imaging_path=None, outpath=None, subject_ima
     mesh_path = path.join(subj_imaging_path, 'Meshes')
     pial_files = glob.glob(path.join(mesh_path, '*pial.mat'))
 
-    create_cortical_surfaces(pial_files)
+    subject.cortical_surfaces = create_cortical_surfaces(pial_files, subject_id)
 
     out_base_path = os.path.split(outpath)[0]
     subj_fpath = path.join(out_base_path, subject_id + '.nwb')

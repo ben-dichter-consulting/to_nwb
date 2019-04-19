@@ -204,7 +204,7 @@ def create_cortical_surfaces(pial_files, subject_id):
 
         tri = matin[x]['tri'][0][0] - 1
         vert = matin[x]['vert'][0][0]
-        name = os.path.split(pial_file)[1][len(subject_id) + 1:-9]
+        name = os.path.split(pial_file)[1][len(subject_id) + 1:-4]
         names.append(name)
         cortical_surfaces.create_surface(faces=tri.astype('uint'), vertices=vert, name=name)
     return cortical_surfaces

@@ -290,7 +290,7 @@ def read_electrodes(elec_metadata_file):
     return elec_grp_df, coord
 
 
-def write_electrodes(nwbfile, elec_grp_df, coord, bad_elecs_inds):
+def write_electrodes(nwbfile, elec_grp_df, coord, bad_elecs_inds, warped_coord=None):
     ignore_devices = ('NaN', 'Right', 'EKG', 'Na')
 
     elec_grp_df['bad'] = np.zeros((len(elec_grp_df),), dtype=bool)
@@ -298,6 +298,11 @@ def write_electrodes(nwbfile, elec_grp_df, coord, bad_elecs_inds):
 
     devices = remove_duplicates(elec_grp_df['device'])
     devices = [x for x in devices if x not in ignore_devices]
+
+    if warped_coord is not None:
+        nwbfile.add_electrode_column('x_warped', 'x warped onto cvs_avg35_inMNI152')
+        nwbfile.add_electrode_column('y_warped', 'x warped onto cvs_avg35_inMNI152')
+        nwbfile.add_electrode_column('z_warped', 'x warped onto cvs_avg35_inMNI152')
 
     for device_name in devices:
         device_data = elec_grp_df[elec_grp_df['device'] == device_name]
@@ -313,16 +318,30 @@ def write_electrodes(nwbfile, elec_grp_df, coord, bad_elecs_inds):
         )
 
         for idx, elec_data in device_data.iterrows():
-            nwbfile.add_electrode(
-                x=float(coord[idx, 0]), y=float(coord[idx, 1]), z=float(coord[idx, 2]),
-                imp=np.nan, location=elec_data['loc'], filtering='none', group=electrode_group,
-                bad=elec_data['bad'])
+            kwargs = {}
+            kwargs.update(x=float(coord[idx, 0]),
+                          y=float(coord[idx, 1]),
+                          z=float(coord[idx, 2]),
+                          imp=np.nan,
+                          location=elec_data['loc'],
+                          filtering='none',
+                          group=electrode_group,
+                          bad=elec_data['bad'])
+            if warped_coord is not None:
+                kwargs.update(x_warped=float(warped_coord[idx, 0]),
+                              y_warped=float(warped_coord[idx, 1]),
+                              z_warped=float(warped_coord[idx, 2]))
+            nwbfile.add_electrode(**kwargs)
 
 
-def add_electrodes(nwbfile, elec_metadata_file, bad_elecs_inds):
-
+def add_electrodes(nwbfile, elec_metadata_file, bad_elecs_inds, load_warped=True):
     elec_grp_df, coord = read_electrodes(elec_metadata_file)
-    write_electrodes(nwbfile, elec_grp_df, coord, bad_elecs_inds)
+
+    if load_warped:
+        warped_elec_metadata_file = elec_metadata_file[:-4] + '_warped.mat'
+        warped_coord = read_electrodes(warped_elec_metadata_file)[1]
+
+    write_electrodes(nwbfile, elec_grp_df, coord, bad_elecs_inds, warped_coord=warped_coord)
 
 
 def transpose_iter(aa):
@@ -333,7 +352,7 @@ def transpose_iter(aa):
 def chang2nwb(blockpath, outpath=None, session_start_time=None,
               session_description=None, identifier=None, anin4=False,
               ecog_format='auto', external_subject=True, include_pitch=False, include_intensity=False,
-              speakers=True, mic=True, mini=False, hilb=False, verbose=False,
+              speakers=True, mic=False, mini=False, hilb=False, verbose=False,
               imaging_path=None, parse_transcript=False, include_cortical_surfaces=True,
               include_electrodes=True, include_ekg=True, subject_image_list=None, rest_period=None, **kwargs):
     """
@@ -419,7 +438,6 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
         ecog_path = path.join(raw_htk_path, subject_id, blockname, 'RawHTK')
     ecog400_path = path.join(blockpath, 'ecog400', 'ecog.mat')
     elec_metadata_file = path.join(subj_imaging_path, 'elecs', 'TDT_elecs_all.mat')
-    hilbdir = path.join(blockpath, 'HilbAA_70to150_8band')
     mesh_path = path.join(subj_imaging_path, 'Meshes')
     pial_files = glob.glob(path.join(mesh_path, '*pial.mat'))
 

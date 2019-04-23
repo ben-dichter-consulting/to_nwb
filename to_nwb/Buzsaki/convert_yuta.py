@@ -168,7 +168,7 @@ def parse_states(fpath):
 
 
 def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/YutaMouse41/YutaMouse41-150903',
-             subject_xls=None, include_spike_waveforms=True, stub=True):
+             subject_xls=None, include_spike_waveforms=True, stub=True, cache_spec=True):
 
     subject_path, session_id = os.path.split(session_path)
     fpath_base = os.path.split(subject_path)[0]
@@ -243,7 +243,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
 
     for name, channel in special_electrode_dict.items():
         ts = TimeSeries(name=name, description='environmental electrode recorded inline with neural data',
-                        data=all_channels_data[channel], rate=lfp_fs, unit='V', conversion=np.nan, resolution=np.nan)
+                        data=all_channels_data[:, channel], rate=lfp_fs, unit='V', conversion=np.nan, resolution=np.nan)
         nwbfile.add_acquisition(ts)
 
     # compute filtered LFP
@@ -413,7 +413,7 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
 
     print('writing NWB file...', end='', flush=True)
     with NWBHDF5IO(out_fname, mode='w') as io:
-        io.write(nwbfile)
+        io.write(nwbfile, cache_spec=cache_spec)
     print('done.')
 
     print('testing read...', end='', flush=True)

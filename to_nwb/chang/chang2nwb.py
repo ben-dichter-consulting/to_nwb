@@ -192,6 +192,7 @@ def create_cortical_surfaces(pial_files, subject_id):
 
     names = []
     cortical_surfaces = CorticalSurfaces()
+    print(pial_files)
     for pial_file in pial_files:
         matin = loadmat(pial_file)
         if 'cortex' in matin:
@@ -675,7 +676,7 @@ def gen_external_subject(subject_id, basepath=None, imaging_path=None, outpath=N
         subj_imaging_path = os.path.join(imaging_path, subject_id)
 
     mesh_path = path.join(subj_imaging_path, 'Meshes')
-    pial_files = glob.glob(path.join(mesh_path, subject_id+'*pial.mat'))
+    pial_files = glob.glob(path.join(mesh_path, subject_id + '*pial.mat'))
 
     subject.cortical_surfaces = create_cortical_surfaces(pial_files, subject_id)
 

@@ -599,7 +599,10 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
                     cv_transition=row['align'],
                     speak=row['mode'] == 'speak', condition=row['label'])
         elif parse_transcript == 'singing':
-            df = pd.DataFrame(parseout)
+            try:
+                df = make_df(parseout, 0, subject_id, align_pos=0)
+            except:
+                df = pd.DataFrame(parseout)
             nwbfile.add_trial_column(
                 'speak', 'if True, subject is speaking. If False, subject is listening')
             nwbfile.add_trial_column('condition', 'syllable spoken')
@@ -608,7 +611,10 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
                     start_time=row['start'], stop_time=row['stop'],
                     speak=row['mode'] == 'speak', condition=row['label'])
         elif parse_transcript == 'emphasis':
-            df = pd.DataFrame(parseout)
+            try:
+                df = make_df(parseout, 0, subject_id, align_pos=0)
+            except:
+                df = pd.DataFrame(parseout)
             nwbfile.add_trial_column(
                 'speak', 'if True, subject is speaking. If False, subject is listening')
             for _, row in df.iterrows():

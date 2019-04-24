@@ -597,7 +597,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
             for _, row in df.iterrows():
                 nwbfile.add_trial(
                     start_time=row['start'], stop_time=row['stop'],
-                    cv_transition=row['align'],
+                    cv_transition_time=row['align'],
                     speak=row['mode'] == 'speak', condition=row['label'])
         elif parse_transcript == 'singing':
             df = make_df(parseout, 0, subject_id, align_pos=0)

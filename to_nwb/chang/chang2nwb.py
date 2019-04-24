@@ -599,9 +599,8 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
                     cv_transition=row['align'],
                     speak=row['mode'] == 'speak', condition=row['label'])
         elif parse_transcript == 'singing':
-            try:
-                df = make_df(parseout, 0, subject_id, align_pos=0)
-            except:
+            df = make_df(parseout, 0, subject_id, align_pos=0)
+            if not len(df):
                 df = pd.DataFrame(parseout)
 
             df = df.loc[df['label'].astype('bool'), :]  # handle empty labels

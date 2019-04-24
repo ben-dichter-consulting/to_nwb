@@ -9,6 +9,7 @@ import pandas as pd
 
 lab_time_conversion = 1e7
 
+
 def parse(blockpath, blockname):
     """
     Find and parse transcript for block.
@@ -44,6 +45,7 @@ def parse(blockpath, blockname):
                          + str(lab_path))
     return parseout
 
+
 def parse_TextGrid(fname):
     """
     Reads in a TextGrid (used by Praat) and returns a dictionary with the events
@@ -73,7 +75,6 @@ def parse_TextGrid(fname):
     start = []
     stop = []
     tier = []
-
 
     if any(['item [' in c for c in content]):
         # Normal formatting
@@ -124,6 +125,7 @@ def parse_TextGrid(fname):
 
     return format_events(label, start, stop, tier)
 
+
 def parse_Lab(fname):
     """
     Reads a 'lab' transcript and returns a dictionary with the events
@@ -166,13 +168,9 @@ def parse_Lab(fname):
         token_vowel = token_text[-2:]
         return token_text, token_consonant, token_vowel, token_num
 
-
     start = []
-    stop  = []
+    stop = []
     tier = []
-    position = []
-    contains = []
-    contained_by = []
     label = []
     with open(fname) as lab:
         content = lab.readlines()
@@ -203,6 +201,7 @@ def parse_Lab(fname):
 
     return format_events(label, start, stop, tier)
 
+
 def standardize_token(token):
     """
     Standardizations to make to tokens.
@@ -225,6 +224,7 @@ def standardize_token(token):
     token = token.replace('aw', 'aa')
 
     return token
+
 
 def format_events(label, start, stop, tier):
     """
@@ -289,7 +289,6 @@ def format_events(label, start, stop, tier):
         same_word = np.where(np.asarray(contained_by) == contained_by[ind])[0]
         position[ind] = np.where(same_word == ind)[0]
 
-
     contains = np.asarray(contains, dtype=object)
     contained_by = np.asarray(contained_by, dtype=object)
 
@@ -298,6 +297,7 @@ def format_events(label, start, stop, tier):
               'contained_by': contained_by, 'position': position}
 
     return events
+
 
 def make_df(parseout, block, subject, align_pos, tier='word'):
     """

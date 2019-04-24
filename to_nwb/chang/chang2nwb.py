@@ -603,6 +603,8 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
                 df = make_df(parseout, 0, subject_id, align_pos=0)
             except:
                 df = pd.DataFrame(parseout)
+
+            df = df.loc[df['label'].astype('bool'), :]  # handle empty labels
             nwbfile.add_trial_column(
                 'speak', 'if True, subject is speaking. If False, subject is listening')
             nwbfile.add_trial_column('condition', 'syllable spoken')

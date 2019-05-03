@@ -192,7 +192,6 @@ def create_cortical_surfaces(pial_files, subject_id):
 
     names = []
     cortical_surfaces = CorticalSurfaces()
-    print(pial_files)
     for pial_file in pial_files:
         matin = loadmat(pial_file)
         if 'cortex' in matin:
@@ -518,9 +517,9 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
                                         description="audio stimulus 1"))
 
         # Add audio stimulus 2
-        fs, data = get_analog(blockpath, 3)
-        nwbfile.add_stimulus(TimeSeries('speaker 2', data, 'NA', rate=fs,
-                                        description='the second stimulus source'))
+        #fs, data = get_analog(blockpath, 3)
+        #nwbfile.add_stimulus(TimeSeries('speaker 2', data, 'NA', rate=fs,
+        #                                description='the second stimulus source'))
 
     if anin4:
         fs, data = get_analog(blockpath, 4)

@@ -131,7 +131,8 @@ def get_analog(blockpath, num=1):
     raw_fpath = os.path.join(raw_htk_path, subject_id, blockname, 'raw.mat')
     if os.path.isfile(raw_fpath):
         return load_anin(raw_fpath, num)
-    raise Exception('no analog path found for ' + str(num))
+    print('no analog path found for ' + str(num))
+    return None, None
 
 
 def get_subject_id(blockname):
@@ -517,9 +518,10 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
                                         description="audio stimulus 1"))
 
         # Add audio stimulus 2
-        #fs, data = get_analog(blockpath, 3)
-        #nwbfile.add_stimulus(TimeSeries('speaker 2', data, 'NA', rate=fs,
-        #                                description='the second stimulus source'))
+        fs, data = get_analog(blockpath, 3)
+        if fs is not None:
+            nwbfile.add_stimulus(TimeSeries('speaker 2', data, 'NA', rate=fs,
+                                            description='the second stimulus source'))
 
     if anin4:
         fs, data = get_analog(blockpath, 4)

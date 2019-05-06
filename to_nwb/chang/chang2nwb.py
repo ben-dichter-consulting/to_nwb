@@ -128,7 +128,7 @@ def get_analog(blockpath, num=1):
         return htk_out['sampling_rate'], htk_out['data'].ravel()
     blockname = os.path.split(blockpath)[1]
     subject_id = get_subject_id(blockname)
-    raw_fpath = os.path.join(raw_htk_path, subject_id, blockname, 'raw.mat')
+    raw_fpath = os.path.join(raw_htk_paths[0], subject_id, blockname, 'raw.mat')
     if os.path.isfile(raw_fpath):
         return load_anin(raw_fpath, num)
     print('no analog path found for ' + str(num))
@@ -424,8 +424,6 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     # file paths
     bad_time_file = path.join(blockpath, 'Artifacts', 'badTimeSegments.mat')
     ecog_path = path.join(blockpath, 'RawHTK')
-    if not os.path.exists(ecog_path) and raw_htk_path is not None:
-        ecog_path = path.join(raw_htk_path, subject_id, blockname, 'RawHTK')
     ecog400_path = path.join(blockpath, 'ecog400', 'ecog.mat')
     elec_metadata_file = path.join(subj_imaging_path, 'elecs', 'TDT_elecs_all.mat')
     mesh_path = path.join(subj_imaging_path, 'Meshes')
@@ -474,7 +472,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
         ecog_path = ecog400_path
 
     elif ecog_format == 'raw':
-        ecog_path = os.path.join(raw_htk_path, subject_id, blockname, 'raw.mat')
+        ecog_path = os.path.join(raw_htk_paths[0], subject_id, blockname, 'raw.mat')
         ecog_rate, data = load_wavs(ecog_path)
 
     else:

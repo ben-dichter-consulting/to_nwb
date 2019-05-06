@@ -35,7 +35,7 @@ from ..tdt import load_wavs, load_anin
 # get_manager must come after dynamic imports
 manager = get_manager()
 
-raw_htk_path = '/data_store1/human/prcsd_data'
+raw_htk_paths = ['/data_store1/human/prcsd_data', '/data_store0/human/HTK_raw']
 IMAGING_PATH = '/data_store2/imaging/subjects'
 hilb_dir = '/userdata/bdichter/from_jesse/'
 
@@ -159,31 +159,20 @@ def gen_htk_num(i, n=64):
 def auto_ecog(blockpath, ecog_elecs, verbose=False):
     basepath, blockname = os.path.split(blockpath)
     subject_id = get_subject_id(blockname)
-    htk_path1 = os.path.join(blockpath, 'RawHTK')
-    htk_path2 = os.path.join(raw_htk_path, subject_id, blockname, 'RawHTK')
-    raw_fpath = os.path.join(raw_htk_path, subject_id, blockname, 'raw.mat')
-    # try htk in blockdir, then backup
-    if os.path.exists(htk_path1) or os.path.exists(htk_path2):
-        if os.path.exists(htk_path1):
-            ecog_file = htk_path1
-
-        else:
-            ecog_file = htk_path2
-        if verbose:
-            print('reading htk acquisition...', flush=True)
-        fs, data = readhtks(ecog_file, ecog_elecs)
-        data = data.squeeze()
-        if verbose:
-            print('done', flush=True)
-
-    # try raw
-    elif os.path.exists(raw_fpath):
-        ecog_file = raw_fpath
-        fs, data = load_wavs(raw_fpath)
-    else:
-        raise Exception('no ECoG found for ' + blockname)
-
-    return fs, data, ecog_file
+    for htk_blockpath in [blockpath] + [os.path.join(x, subject_id, blockname) for x in raw_htk_paths]:
+        htk_path = os.path.join(htk_blockpath, 'RawHTK')
+        if os.path.exists(htk_path):
+            if verbose:
+                print('reading htk acquisition...', flush=True)
+            fs, data = readhtks(htk_path, ecog_elecs)
+            data = data.squeeze()
+            if verbose:
+                print('done', flush=True)
+            return fs, data, htk_path
+        raw_fpath = os.path.join(htk_blockpath, 'raw.mat')
+        if os.path.exists(raw_fpath):
+            fs, data = load_wavs(raw_fpath)
+            return fs, data, raw_fpath
 
 
 def create_cortical_surfaces(pial_files, subject_id):

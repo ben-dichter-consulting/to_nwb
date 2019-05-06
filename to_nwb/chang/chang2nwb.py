@@ -35,7 +35,7 @@ from ..tdt import load_wavs, load_anin
 # get_manager must come after dynamic imports
 manager = get_manager()
 
-raw_htk_path = '/data_store0/human/HTK_raw'
+raw_htk_path = '/data_store1/human/prcsd_data'
 IMAGING_PATH = '/data_store2/imaging/subjects'
 hilb_dir = '/userdata/bdichter/from_jesse/'
 

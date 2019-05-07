@@ -609,6 +609,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
             if not len(df):
                 df = pd.DataFrame(parseout)
             df = df.loc[df['label'].astype('bool'), :]  # handle empty labels
+            nwbfile.add_trial_column('condition', 'word emphasized')
             nwbfile.add_trial_column(
                 'speak', 'if True, subject is speaking. If False, subject is listening')
             for _, row in df.iterrows():

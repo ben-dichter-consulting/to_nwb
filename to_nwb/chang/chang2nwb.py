@@ -625,8 +625,6 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
             transcript = create_transcription_ndx(transcript_path, blockname)
             behav_module.add_data_interface(transcript)
 
-
-
     # behavior
     if include_pitch:
         if behav_module is None:

@@ -27,7 +27,7 @@ from hdmf.backends.hdf5 import H5DataIO
 from hdmf.data_utils import DataChunkIterator
 
 from .HTK import readHTK
-from .transcripts import parse, make_df
+from .transcripts import parse, make_df, create_transcription_ndx
 from ..utils import remove_duplicates
 from ..tdt import load_wavs, load_anin
 
@@ -38,6 +38,7 @@ manager = get_manager()
 raw_htk_paths = ['/data_store1/human/prcsd_data', '/data_store0/human/HTK_raw']
 IMAGING_PATH = '/data_store2/imaging/subjects'
 hilb_dir = '/userdata/bdichter/from_jesse/'
+transcript_path = '/userdata/jliu/data/human/EC118/lfp'
 
 
 """
@@ -399,6 +400,8 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
 
     """
 
+    behav_module = None
+
     basepath, blockname = os.path.split(blockpath)
     subject_id = get_subject_id(blockname)
     if identifier is None:
@@ -616,11 +619,18 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
                 nwbfile.add_trial(
                     start_time=row['start'], stop_time=row['stop'],
                     speak=True, condition=row['label'])
+        elif parse_transcript == 'MOCHA':
+            if behav_module is None:
+                behav_module = nwbfile.create_processing_module('behavior', 'processing about behavior')
+            transcript = create_transcription_ndx(transcript_path, blockname)
+            behav_module.add_data_interface(transcript)
+
+
 
     # behavior
-    if include_intensity or include_pitch:
-        behav_module = nwbfile.create_processing_module('behavior', 'processing about behavior')
     if include_pitch:
+        if behav_module is None:
+            behav_module = nwbfile.create_processing_module('behavior', 'processing about behavior')
         if os.path.isfile(os.path.join(blockpath, 'pitch_' + blockname + '.mat')):
             fs, data = load_pitch(blockpath)
             pitch_ts = TimeSeries(data=data, rate=fs, unit='Hz', name='pitch',
@@ -630,6 +640,8 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
             print('No pitch file for ' + blockname)
 
     if include_intensity:
+        if behav_module is None:
+            behav_module = nwbfile.create_processing_module('behavior', 'processing about behavior')
         if os.path.isfile(os.path.join(blockpath, 'intensity_' + blockname + '.mat')):
             fs, data = load_pitch(blockpath)
             intensity_ts = TimeSeries(data=data, rate=fs, unit='dB', name='intensity',

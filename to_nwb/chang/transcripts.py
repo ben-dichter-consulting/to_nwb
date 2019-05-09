@@ -5,6 +5,8 @@ __author__ = 'David Conant, Jesse Livezey'
 import re, os
 import numpy as np
 import pandas as pd
+from pynwb.epoch import TimeIntervals
+from pynwb import load_namespace, get_class
 
 
 lab_time_conversion = 1e7
@@ -312,7 +314,7 @@ def make_df(parseout, block, subject, align_pos, tier='word'):
     subject : str
         Subject ID.
     align_pos : int
-        Subelement in event to align to.
+        Sub-element in event to align to.
     tier : str
         Type of event to extract.
     """
@@ -343,3 +345,48 @@ def make_df(parseout, block, subject, align_pos, tier='word'):
     df_events['subject'] = subject
 
     return df_events
+
+
+def create_transcription_ndx(transcript_path, block):
+    def add_blocks(df):
+        df['block'] = [x[:-4] for x in df['sentence_id']]
+
+    def reduce_df(df, block, cols=('start_time', 'stop_time', 'label')):
+        return df.loc[df['block'] == block][list(cols)]
+
+    # phoneme features
+    fpath = os.path.join(transcript_path, 'phoneme_features.times')
+
+    # not working
+    df = pd.read_csv(fpath, names=('label', 'sentence_id', 'start_time', 'stop_time'), sep=' ')
+    add_blocks(df)
+    phoneme_features = TimeIntervals.from_dataframe(reduce_df(df, block), name='phoneme_features')
+
+    # words
+    fpath = os.path.join(transcript_path, 'word.times')
+
+    words_df = pd.read_csv(fpath, names=('label', 'sentence_id', 'start_time', 'stop_time'), sep=' ')
+    add_blocks(words_df)
+    words = TimeIntervals.from_dataframe(reduce_df(words_df, block), name='words')
+
+    # sentences
+    fpath = os.path.join(transcript_path, 'sentence.times')
+    sentence_df = pd.read_csv(fpath, names=('sentence_id', 'start_time', 'stop_time'), sep=' ')
+    sentence_df['label'] = [' '.join(words_df.loc[words_df['sentence_id'] == sentence_id]['label'])
+                            for sentence_id in sentence_df['sentence_id']]
+    add_blocks(sentence_df)
+    sentences = TimeIntervals.from_dataframe(reduce_df(sentence_df, block), name='sentences')
+
+    # phonemes
+    fpath = os.path.join(transcript_path, 'phoneme.times')
+
+    phonemes_df = pd.read_csv(fpath, names=('label', 'before', 'after', 'sentence_id', 'start_time', 'stop_time'),
+                              sep=' ')
+    add_blocks(phonemes_df)
+    df = reduce_df(phonemes_df, block, ('start_time', 'stop_time', 'label', 'before', 'after'))
+    phonemes = TimeIntervals.from_dataframe(df, name='sentences')
+
+    load_namespace('/Users/bendichter/dev/to_nwb/to_nwb/ndx_speech/spec/speech.namespace.yaml')
+    Transcription = get_class('Transcription', 'speech')
+
+    return Transcription(words=words, sentneces=sentences, phonemes=phonemes)

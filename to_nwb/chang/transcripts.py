@@ -1,12 +1,11 @@
 from __future__ import division
 
-__author__ = 'David Conant, Jesse Livezey'
+__author__ = 'David Conant, Jesse Livezey, Ben Dichter'
 
 import re, os
 import numpy as np
 import pandas as pd
 from pynwb.epoch import TimeIntervals
-from pynwb import load_namespace, get_class
 
 
 lab_time_conversion = 1e7

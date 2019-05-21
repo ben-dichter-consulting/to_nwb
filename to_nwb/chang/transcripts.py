@@ -348,6 +348,9 @@ def make_df(parseout, block, subject, align_pos, tier='word'):
 
 
 def create_transcription_ndx(transcript_path, block):
+
+    from ndx_speech import Transcription
+
     def add_blocks(df):
         df['block'] = [x[:-4] for x in df['sentence_id']]
 
@@ -385,8 +388,5 @@ def create_transcription_ndx(transcript_path, block):
     add_blocks(phonemes_df)
     df = reduce_df(phonemes_df, block, ('start_time', 'stop_time', 'label', 'before', 'after'))
     phonemes = TimeIntervals.from_dataframe(df, name='sentences')
-
-    load_namespace('/Users/bendichter/dev/to_nwb/to_nwb/ndx_speech/spec/speech.namespace.yaml')
-    Transcription = get_class('Transcription', 'speech')
 
     return Transcription(words=words, sentneces=sentences, phonemes=phonemes)

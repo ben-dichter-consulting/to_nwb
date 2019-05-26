@@ -388,4 +388,4 @@ def create_transcription_ndx(transcript_path, block):
     df = reduce_df(phonemes_df, block, ('start_time', 'stop_time', 'label', 'before', 'after'))
     phonemes = TimeIntervals.from_dataframe(df, name='sentences')
 
-    return Transcription(words=words, sentneces=sentences, phonemes=phonemes)
+    return Transcription(words=words, sentences=sentences, phonemes=phonemes)

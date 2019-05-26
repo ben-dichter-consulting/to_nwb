@@ -372,7 +372,7 @@ def create_transcription_ndx(transcript_path, block):
     words = TimeIntervals.from_dataframe(reduce_df(words_df, block), name='words')
 
     # sentences
-    fpath = os.path.join(transcript_path, 'sentence.times')
+    fpath = os.path.join(transcript_path, 'sentences.times')
     sentence_df = pd.read_csv(fpath, names=('sentence_id', 'start_time', 'stop_time'), sep=' ')
     sentence_df['label'] = [' '.join(words_df.loc[words_df['sentence_id'] == sentence_id]['label'])
                             for sentence_id in sentence_df['sentence_id']]

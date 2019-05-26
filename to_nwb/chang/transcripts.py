@@ -360,9 +360,9 @@ def create_transcription_ndx(transcript_path, block):
     fpath = os.path.join(transcript_path, 'phoneme_features.times')
 
     # not working
-    df = pd.read_csv(fpath, names=('label', 'sentence_id', 'start_time', 'stop_time'), sep=' ')
-    add_blocks(df)
-    phoneme_features = TimeIntervals.from_dataframe(reduce_df(df, block), name='phoneme_features')
+    #df = pd.read_csv(fpath, names=('label', 'sentence_id', 'start_time', 'stop_time'), sep=' ')
+    #add_blocks(df)
+    #phoneme_features = TimeIntervals.from_dataframe(reduce_df(df, block), name='phoneme_features')
 
     # words
     fpath = os.path.join(transcript_path, 'word.times')

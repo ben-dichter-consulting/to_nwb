@@ -577,8 +577,8 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     nwbfile.subject = subject
 
     if parse_transcript:
-        parseout = parse(blockpath, blockname)
         if parse_transcript == 'CV':
+            parseout = parse(blockpath, blockname)
             df = make_df(parseout, 0, subject_id, align_pos=1)
             nwbfile.add_trial_column(
                 'cv_transition_time', 'time of CV transition in seconds')
@@ -591,6 +591,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
                     cv_transition_time=row['align'],
                     speak=row['mode'] == 'speak', condition=row['label'])
         elif parse_transcript == 'singing':
+            parseout = parse(blockpath, blockname)
             df = make_df(parseout, 0, subject_id, align_pos=0)
             if not len(df):
                 df = pd.DataFrame(parseout)
@@ -605,6 +606,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
                     start_time=row['start'], stop_time=row['stop'],
                     speak=row['mode'] == 'speak', condition=row['label'])
         elif parse_transcript == 'emphasis':
+            parseout = parse(blockpath, blockname)
             try:
                 df = make_df(parseout, 0, subject_id, align_pos=0)
             except:

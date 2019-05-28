@@ -370,6 +370,7 @@ def create_transcription_ndx(transcript_path, block):
     words_df = pd.read_csv(fpath, names=('label', 'sentence_id', 'start_time', 'stop_time'), sep=' ')
     add_blocks(words_df)
     words = TimeIntervals.from_dataframe(reduce_df(words_df, block), name='words')
+    print(words.to_dataframe())
 
     # sentences
     fpath = os.path.join(transcript_path, 'sentences.times')

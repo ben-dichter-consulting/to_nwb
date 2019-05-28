@@ -400,3 +400,5 @@ def create_transcription(nwbfile, transcript_path, block):
     df = reduce_df(phonemes_df, block, ('start_time', 'stop_time', 'label', 'before', 'after'))
     phonemes = TimeIntervals.from_dataframe(df, name='phonemes')
     nwbfile.add_time_intervals(phonemes)
+
+    return nwbfile

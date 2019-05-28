@@ -350,6 +350,8 @@ def create_transcription_ndx(transcript_path, block):
 
     from ndx_speech import Transcription
 
+    print(Transcription.__nwbfields__, flush=True)
+
     def add_blocks(df):
         df['block'] = [x[:-4] for x in df['sentence_id']]
 

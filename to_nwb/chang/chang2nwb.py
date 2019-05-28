@@ -624,7 +624,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
         elif parse_transcript == 'MOCHA':
             if behav_module is None:
                 behav_module = nwbfile.create_processing_module('behavior', 'processing about behavior')
-            create_transcription(transcript_path, blockname)
+            create_transcription(nwbfile, transcript_path, blockname)
 
     # behavior
     if include_pitch:

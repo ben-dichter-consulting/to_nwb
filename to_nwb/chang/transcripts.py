@@ -347,6 +347,18 @@ def make_df(parseout, block, subject, align_pos, tier='word'):
 
 
 def create_transcription(nwbfile, transcript_path, block):
+    """
+
+    Parameters
+    ----------
+    nwbfile: pynwb.NWBFile
+    transcript_path: str
+    block: str
+
+    Returns
+    -------
+
+    """
 
     def add_blocks(df):
         df['block'] = [x[:-4] for x in df['sentence_id']]

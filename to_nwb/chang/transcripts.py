@@ -346,11 +346,7 @@ def make_df(parseout, block, subject, align_pos, tier='word'):
     return df_events
 
 
-def create_transcription_ndx(transcript_path, block):
-
-    from ndx_speech import Transcription
-
-    print(Transcription.__nwbfields__, flush=True)
+def create_transcription(nwbfile, transcript_path, block):
 
     def add_blocks(df):
         df['block'] = [x[:-4] for x in df['sentence_id']]
@@ -372,7 +368,7 @@ def create_transcription_ndx(transcript_path, block):
     words_df = pd.read_csv(fpath, names=('label', 'sentence_id', 'start_time', 'stop_time'), sep=' ')
     add_blocks(words_df)
     words = TimeIntervals.from_dataframe(reduce_df(words_df, block), name='words')
-    print(words.to_dataframe(), flush=True)
+    nwbfile.add_time_intervals(words)
 
     # sentences
     fpath = os.path.join(transcript_path, 'sentences.times')
@@ -381,6 +377,7 @@ def create_transcription_ndx(transcript_path, block):
                             for sentence_id in sentence_df['sentence_id']]
     add_blocks(sentence_df)
     sentences = TimeIntervals.from_dataframe(reduce_df(sentence_df, block), name='sentences')
+    nwbfile.add_time_intervals(sentences)
 
     # phonemes
     fpath = os.path.join(transcript_path, 'phoneme.times')
@@ -390,5 +387,4 @@ def create_transcription_ndx(transcript_path, block):
     add_blocks(phonemes_df)
     df = reduce_df(phonemes_df, block, ('start_time', 'stop_time', 'label', 'before', 'after'))
     phonemes = TimeIntervals.from_dataframe(df, name='phonemes')
-
-    return Transcription(words=words, sentences=sentences, phonemes=phonemes)
+    nwbfile.add_time_intervals(phonemes)

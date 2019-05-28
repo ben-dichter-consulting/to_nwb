@@ -27,7 +27,7 @@ from hdmf.backends.hdf5 import H5DataIO
 from hdmf.data_utils import DataChunkIterator
 
 from .HTK import readHTK
-from .transcripts import parse, make_df, create_transcription_ndx
+from .transcripts import parse, make_df, create_transcription
 from ..utils import remove_duplicates
 from ..tdt import load_wavs, load_anin
 
@@ -624,8 +624,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
         elif parse_transcript == 'MOCHA':
             if behav_module is None:
                 behav_module = nwbfile.create_processing_module('behavior', 'processing about behavior')
-            transcript = create_transcription_ndx(transcript_path, blockname)
-            behav_module.add_data_interface(transcript)
+            create_transcription(transcript_path, blockname)
 
     # behavior
     if include_pitch:

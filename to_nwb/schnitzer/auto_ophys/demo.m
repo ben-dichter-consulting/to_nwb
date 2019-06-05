@@ -1,4 +1,15 @@
+%%
+% These functions call matnwb functions to create an NWB file with just a few calls. You need to install 
+% matnwb (including running GenerateCore) for this to work. These functions simplify the process of creating
+% an NWB object by making assumptions about the structure of the data. There are lots of customizations possible
+% within NWB that these functions do not support, so if they do not suite your needs you can look inside and
+% alter them or ask me (Ben).
+%
+% The functions use prefixes on the labels to direct name-value pairs to specific MatNWB objects (e.g. file, 
+% subject, imaging_plane). In some cases this leads to awkward names (e.g. 'subject_subject_id') but hopefully
+% the intention is clear despite that.
 
+%%
 session_start_time = datetime(2018, 3, 1, 12, 0, 0, 'TimeZone', 'local');
 
 nwb = init_nwb_session( ...

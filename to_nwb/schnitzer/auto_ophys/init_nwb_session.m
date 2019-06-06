@@ -12,7 +12,7 @@ subject_description = p.Results.subject_description;
 
 
 file_varargin = pull_varargin(varargin, 'file');
-nwb = types.core.NWBFile(file_varargin{:});
+nwb = nwbfile(file_varargin{:});
 
 subject_varargin = pull_varargin(varargin, 'subject');
 nwb.general_subject = types.core.Subject( ...

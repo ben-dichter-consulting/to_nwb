@@ -2,9 +2,7 @@
 % These functions call matnwb functions to create an NWB file with just a few calls. You need to install 
 % matnwb (including running GenerateCore) for this to work. These functions simplify the process of creating
 % an NWB object by making assumptions about the structure of the data. There are lots of customizations possible
-% within NWB that these functions do not support, like multiple simultaneous imaging planes, volumetric imaging,
-% multiple analysis pipelines for comparison, and much more. If you need something non-standard you will need to
-% alter these functions (or talk to Ben)
+% within NWB that these functions do not support, like multiple simultaneous imaging planes,
 %
 % The functions use prefixes on the labels to direct name-value pairs to specific MatNWB objects (e.g. file, 
 % subject, imaging_plane). In some cases this leads to awkward names (e.g. 'subject_subject_id') but hopefully

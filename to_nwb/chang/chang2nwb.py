@@ -298,7 +298,7 @@ def write_electrodes(nwbfile, elec_grp_df, coord, bad_elecs_inds, warped_coord=N
 
     for device_name in devices:
         device_data = elec_grp_df[elec_grp_df['device'] == device_name]
-        if device_data:
+        if not device_data.empty:
             # Create devices
             device = nwbfile.create_device(device_name)
 

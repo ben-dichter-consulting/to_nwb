@@ -298,6 +298,7 @@ def write_electrodes(nwbfile, elec_grp_df, coord, bad_elecs_inds, warped_coord=N
 
     for device_name in devices:
         device_data = elec_grp_df[elec_grp_df['device'] == device_name]
+        elec_counter = 0
         if not device_data.empty:
             # Create devices
             device = nwbfile.create_device(device_name)
@@ -310,21 +311,23 @@ def write_electrodes(nwbfile, elec_grp_df, coord, bad_elecs_inds, warped_coord=N
                 device=device
             )
 
-        for idx, elec_data in device_data.iterrows():
+        for _, elec_data in device_data.iterrows():
             kwargs = {}
-            kwargs.update(x=float(coord[idx, 0]),
-                          y=float(coord[idx, 1]),
-                          z=float(coord[idx, 2]),
+            kwargs.update(x=float(coord[elec_counter, 0]),
+                          y=float(coord[elec_counter, 1]),
+                          z=float(coord[elec_counter, 2]),
                           imp=np.nan,
                           location=elec_data['loc'],
                           filtering='none',
                           group=electrode_group,
                           bad=elec_data['bad'])
             if warped_coord is not None:
-                kwargs.update(x_warped=float(warped_coord[idx, 0]),
-                              y_warped=float(warped_coord[idx, 1]),
-                              z_warped=float(warped_coord[idx, 2]))
+                kwargs.update(x_warped=float(warped_coord[elec_counter, 0]),
+                              y_warped=float(warped_coord[elec_counter, 1]),
+                              z_warped=float(warped_coord[elec_counter, 2]))
             nwbfile.add_electrode(**kwargs)
+
+            elec_counter += 1
 
 
 def add_electrodes(nwbfile, elec_metadata_file, bad_elecs_inds, load_warped=True):
@@ -347,7 +350,8 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
               ecog_format='auto', external_subject=True, include_pitch=False, include_intensity=False,
               speakers=True, mic=False, mini=False, hilb=False, verbose=False,
               imaging_path=None, parse_transcript=False, include_cortical_surfaces=True,
-              include_electrodes=True, include_ekg=True, subject_image_list=None, rest_period=None, **kwargs):
+              include_electrodes=True, include_ekg=True, subject_image_list=None, rest_period=None,
+              load_warped=False, **kwargs):
     """
 
     Parameters
@@ -445,7 +449,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     bad_elecs_inds = get_bad_elecs(blockpath)
 
     if include_electrodes:
-        add_electrodes(nwbfile, elec_metadata_file, bad_elecs_inds)
+        add_electrodes(nwbfile, elec_metadata_file, bad_elecs_inds, load_warped=load_warped)
     else:
         device = nwbfile.create_device('auto_device')
         electrode_group = nwbfile.create_electrode_group(

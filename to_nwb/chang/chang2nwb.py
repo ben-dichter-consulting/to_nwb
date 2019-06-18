@@ -17,6 +17,7 @@ from pynwb.behavior import BehavioralTimeSeries
 from pynwb.image import RGBImage, RGBAImage, GrayscaleImage
 from pynwb.base import Images
 from pynwb.misc import DecompositionSeries
+from pynwb.file import Subject
 from pytz import timezone
 from scipy.io import loadmat
 from scipy.io.wavfile import read as wavread
@@ -486,7 +487,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     if mini:
         data = data[:2000]
 
-    ecog_ts = ElectricalSeries(name='ECoG', data=H5DataIO(data, compression='gzip'),
+    ecog_ts = ElectricalSeries(name='ElectricalSeries', data=H5DataIO(data, compression='gzip'),
                                electrodes=ecog_elecs_region, rate=ecog_rate, description=ts_desc,
                                conversion=0.001)
     nwbfile.add_acquisition(ecog_ts)
@@ -526,7 +527,8 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
                                               tags=('ECoG artifact',), timeseries=ecog_ts)
 
     if rest_period is not None:
-        nwbfile.add_epoch(start_time=rest_period[0], stop_time=rest_period[1])
+        nwbfile.add_epoch_column(name='label', description='label')
+        nwbfile.add_epoch(start_time=rest_period[0], stop_time=rest_period[1], label='rest_period')
 
     if hilb:
         block_hilb_path = os.path.join(hilb_dir, subject_id, blockname, blockname + '_AA.h5')
@@ -554,10 +556,11 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
             name='ecephys', description='holds hilbert analysis results')
         hilb_mod.add_container(decomp_series)
 
-    subject = ECoGSubject(subject_id=subject_id)
-
     if include_cortical_surfaces:
+        subject = ECoGSubject(subject_id=subject_id)
         subject.cortical_surfaces = create_cortical_surfaces(pial_files, subject_id)
+    else:
+        subject = Subject(subject_id=subject_id, species='Homo sapiens')
 
     if subject_image_list is not None:
         subject = add_images_to_subject(subject, subject_image_list)

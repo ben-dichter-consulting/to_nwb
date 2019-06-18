@@ -298,16 +298,17 @@ def write_electrodes(nwbfile, elec_grp_df, coord, bad_elecs_inds, warped_coord=N
 
     for device_name in devices:
         device_data = elec_grp_df[elec_grp_df['device'] == device_name]
-        # Create devices
-        device = nwbfile.create_device(device_name)
+        if device_data:
+            # Create devices
+            device = nwbfile.create_device(device_name)
 
-        # Create electrode groups
-        electrode_group = nwbfile.create_electrode_group(
-            name=device_name + ' electrodes',
-            description=device_name,
-            location=device_data['type'].iloc[0],
-            device=device
-        )
+            # Create electrode groups
+            electrode_group = nwbfile.create_electrode_group(
+                name=device_name + ' electrodes',
+                description=device_name,
+                location=device_data['type'].iloc[0],
+                device=device
+            )
 
         for idx, elec_data in device_data.iterrows():
             kwargs = {}

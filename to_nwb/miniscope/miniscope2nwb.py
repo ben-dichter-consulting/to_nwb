@@ -48,7 +48,9 @@ nwb.add_acquisition(
         format='external',
         external_file=ms_files,
         timestamps=load_miniscope_timestamps(data_dir),
-        starting_frame=[0]))
+        starting_frame=[0] * len(ms_files)
+    )
+)
 
 nwb.add_acquisition(
     ImageSeries(
@@ -56,7 +58,7 @@ nwb.add_acquisition(
         format='external',
         external_file=behav_files,
         timestamps=load_miniscope_timestamps(data_dir, cam_num=2),
-        starting_frame=[0]
+        starting_frame=[0] * len(behav_files)
     )
 )
 

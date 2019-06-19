@@ -237,12 +237,13 @@ def get_bad_elecs(blockpath):
     return bad_elecs_inds
 
 
-def read_electrodes(elec_metadata_file):
+def read_electrodes(elec_metadata_file, load_pos=True):
     """Read metadata for all electrodes
 
     Parameters
     ----------
     elec_metadata_file: str
+    load_pos: bool
 
     Returns
     -------
@@ -269,15 +270,18 @@ def read_electrodes(elec_metadata_file):
                'device': elec_grp_device}
     elec_grp_df = pd.DataFrame(anatomy)
 
-    n = len(elec_grp_long_name)
-    if n < len(elec_grp_xyz_coord):
-        coord = elec_grp_xyz_coord[:n]
-    elif n == len(elec_grp_xyz_coord):
-        coord = elec_grp_xyz_coord
+    if load_pos:
+        n = len(elec_grp_long_name)
+        if n < len(elec_grp_xyz_coord):
+            coord = elec_grp_xyz_coord[:n]
+        elif n == len(elec_grp_xyz_coord):
+            coord = elec_grp_xyz_coord
+        else:
+            coord = elec_grp_xyz_coord
+            for i in range(n - len(elec_grp_xyz_coord)):
+                coord.append([np.nan, np.nan, np.nan])
     else:
-        coord = elec_grp_xyz_coord
-        for i in range(n - len(elec_grp_xyz_coord)):
-            coord.append([np.nan, np.nan, np.nan])
+        coord = np.ones((len(elec_grp_long_name), 3)) * np.nan
 
     return elec_grp_df, coord
 
@@ -291,6 +295,9 @@ def write_electrodes(nwbfile, elec_grp_df, coord, bad_elecs_inds, warped_coord=N
     devices = remove_duplicates(elec_grp_df['device'])
     devices = [x for x in devices if x not in ignore_devices]
 
+    if coord is None:
+        coord = np.ones((len(elec_grp_df), 3)) * np.nan
+
     if warped_coord is not None:
         nwbfile.add_electrode_column('x_warped', 'x warped onto cvs_avg35_inMNI152')
         nwbfile.add_electrode_column('y_warped', 'x warped onto cvs_avg35_inMNI152')
@@ -299,17 +306,16 @@ def write_electrodes(nwbfile, elec_grp_df, coord, bad_elecs_inds, warped_coord=N
     for device_name in devices:
         device_data = elec_grp_df[elec_grp_df['device'] == device_name]
         elec_counter = 0
-        if not device_data.empty:
-            # Create devices
-            device = nwbfile.create_device(device_name)
+        # Create devices
+        device = nwbfile.create_device(device_name)
 
-            # Create electrode groups
-            electrode_group = nwbfile.create_electrode_group(
-                name=device_name + ' electrodes',
-                description=device_name,
-                location=device_data['type'].iloc[0],
-                device=device
-            )
+        # Create electrode groups
+        electrode_group = nwbfile.create_electrode_group(
+            name=device_name + ' electrodes',
+            description=device_name,
+            location=device_data['type'].iloc[0],
+            device=device
+        )
 
         for _, elec_data in device_data.iterrows():
             kwargs = {}
@@ -330,12 +336,15 @@ def write_electrodes(nwbfile, elec_grp_df, coord, bad_elecs_inds, warped_coord=N
             elec_counter += 1
 
 
-def add_electrodes(nwbfile, elec_metadata_file, bad_elecs_inds, load_warped=True):
-    elec_grp_df, coord = read_electrodes(elec_metadata_file)
+def add_electrodes(nwbfile, elec_metadata_file, bad_elecs_inds, load_warped=True,
+                   load_pos=True):
+    elec_grp_df, coord = read_electrodes(elec_metadata_file, load_pos=load_pos)
 
     if load_warped:
         warped_elec_metadata_file = elec_metadata_file[:-4] + '_warped.mat'
         warped_coord = read_electrodes(warped_elec_metadata_file)[1]
+    else:
+        warped_coord = None
 
     write_electrodes(nwbfile, elec_grp_df, coord, bad_elecs_inds, warped_coord=warped_coord)
 

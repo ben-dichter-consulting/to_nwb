@@ -462,9 +462,9 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     if include_electrodes:
         add_electrodes(nwbfile, elec_metadata_file, bad_elecs_inds, load_warped=load_warped)
     else:
-        device = nwbfile.create_device('auto_device')
+        device = nwbfile.create_device('256Grid')
         electrode_group = nwbfile.create_electrode_group(
-            name='auto_group', description='auto_group', location='location',
+            name='256Grid electrodes', description='auto_group', location='location',
             device=device)
 
         for elec_counter in range(256):

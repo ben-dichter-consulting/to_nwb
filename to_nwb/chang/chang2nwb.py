@@ -450,6 +450,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
     # Create the NWB file object
     nwbfile = NWBFile(session_description, identifier,
                       session_start_time, datetime.now().astimezone(),
+                      session_id=identifier,
                       institution='University of California, San Francisco',
                       lab='Chang Lab', **kwargs)
 

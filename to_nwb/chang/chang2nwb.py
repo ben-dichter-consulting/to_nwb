@@ -37,6 +37,7 @@ from ..tdt import load_wavs, load_anin
 manager = get_manager()
 
 raw_htk_paths = ['/data_store1/human/prcsd_data', '/data_store0/human/HTK_raw']
+tdt_data_path = '/data_store0/human/HTK_raw'
 IMAGING_PATH = '/data_store2/imaging/subjects'
 hilb_dir = '/userdata/bdichter/from_jesse/'
 transcript_path = '/userdata/jliu/data/human/EC118/lfp'
@@ -491,7 +492,7 @@ def chang2nwb(blockpath, outpath=None, session_start_time=None,
         ecog_path = ecog400_path
 
     elif ecog_format == 'raw':
-        ecog_path = os.path.join(raw_htk_paths[0], subject_id, blockname, 'raw.mat')
+        ecog_path = os.path.join(tdt_data_path, subject_id, blockname, 'raw.mat')
         ecog_rate, data = load_wavs(ecog_path)
 
     else:

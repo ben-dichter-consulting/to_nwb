@@ -168,7 +168,7 @@ def parse_states(fpath):
 
 
 def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/YutaMouse41/YutaMouse41-150903',
-             subject_xls=None, include_spike_waveforms=True, stub=True, cache_spec=True):
+             subject_xls=None, include_spike_waveforms=True, stub=True, cache_spec=True, out_fname=None):
 
     subject_path, session_id = os.path.split(session_path)
     fpath_base = os.path.split(subject_path)[0]
@@ -212,8 +212,8 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
                       file_create_date=datetime.now().astimezone(),
                       experimenter='Yuta Senzai',
                       session_id=session_id,
-                      institution='NYU',
-                      lab='Buzsaki',
+                      institution='NYU; http://dx.doi.org/10.13039/100006732',
+                      lab='Buzsaki; https://orcid.org/0000-0002-3100-4800',
                       subject=subject,
                       related_publications='DOI:10.1016/j.neuron.2016.12.011')
 
@@ -242,8 +242,9 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
                           description='lfp signal for all shank electrodes')
 
     for name, channel in special_electrode_dict.items():
-        ts = TimeSeries(name=name, description='environmental electrode recorded inline with neural data',
-                        data=all_channels_data[:, channel], rate=lfp_fs, unit='V', conversion=np.nan, resolution=np.nan)
+        if channel < all_channels_data.shape[1]:
+            ts = TimeSeries(name=name, description='environmental electrode recorded inline with neural data',
+                            data=all_channels_data[:, channel], rate=lfp_fs, unit='V', conversion=np.nan, resolution=np.nan)
         nwbfile.add_acquisition(ts)
 
     # compute filtered LFP
@@ -406,10 +407,11 @@ def yuta2nwb(session_path='/Users/bendichter/Desktop/Buzsaki/SenzaiBuzsaki2017/Y
 
         check_module(nwbfile, 'behavior', 'contains behavioral data').add_data_interface(table)
 
-    if stub:
-        out_fname = session_path + '_stub.nwb'
-    else:
-        out_fname = session_path + '.nwb'
+    if out_fname is None:
+        if stub:
+            out_fname = session_path + '_stub.nwb'
+        else:
+            out_fname = session_path + '.nwb'
 
     print('writing NWB file...', end='', flush=True)
     with NWBHDF5IO(out_fname, mode='w') as io:

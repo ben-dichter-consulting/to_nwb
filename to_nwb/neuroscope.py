@@ -489,7 +489,7 @@ def write_events(nwbfile, session_path, suffixes=None, module=None):
             module.add_data_interface(annotation_series)
 
 
-def write_spike_waveforms(nwbfile, session_path, shankn, stub=False, compression='gzip'):
+def write_spike_waveforms(nwbfile, session_path, shankn, stub=False, compression='gzip', iterative=True):
     """
 
     Parameters
@@ -527,6 +527,12 @@ def write_spike_waveforms(nwbfile, session_path, shankn, stub=False, compression
             return
         spks = np.fromfile(spk_file, dtype=np.int16).reshape(-1, nsamps, nchan)
         spike_times = read_spike_times(session_path, shankn)
+    if iterative:
+        spike_times = DataChunkIterator(tqdm(spike_times, desc='writing spike times {}'.format(shankn),
+                                             total=len(spike_times)),
+                                        buffer_size=100000)
+        spks = DataChunkIterator(tqdm(spks, desc='writing spikes {}'.format(shankn), total=len(spks)),
+                                 buffer_size=100000)
     if compression:
         data = H5DataIO(spks, compression=compression)
     else:

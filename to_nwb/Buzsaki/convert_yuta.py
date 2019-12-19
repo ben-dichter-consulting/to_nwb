@@ -129,7 +129,7 @@ def get_reference_elec(exp_sheet_path, hilus_csv_path, date, session_id, b=False
     return out
 
 
-def get_max_electrodes(nwbfile, session_path, max_shanks=max_shanks):
+def get_max_electrodes(nwbfile, session_path, max_shanks: Int = max_shanks):
     elec_ids = []
     nshanks = min((len(ns.get_shank_channels(session_path)), max_shanks))
     for shankn in np.arange(1, nshanks + 1, dtype=int):

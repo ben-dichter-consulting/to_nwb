@@ -19,4 +19,4 @@ setup(
     author_email='ben.dichter@gmail.com',
     keywords='nwb',
     packages=find_packages(),
-    install_requires=['hdmf','scipy', 'pynwb', 'tqdm', 'bs4', 'pandas', 'numpy', 'h5py', 'xlrd', 'lxml'])
+    install_requires=['hdmf', 'scipy', 'pynwb', 'tqdm', 'pandas', 'numpy', 'h5py', 'xlrd', 'lxml'])

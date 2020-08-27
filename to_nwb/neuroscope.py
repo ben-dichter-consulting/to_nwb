@@ -1,31 +1,27 @@
 """
-Author: Ben Dichter
+Authors: Ben Dichter, Cody Baker
 """
 import os
 from glob import glob
 
 import numpy as np
 import pandas as pd
-from pathlib import Path
 from lxml import etree as et
 from pynwb.behavior import SpatialSeries
-from pynwb.ecephys import ElectricalSeries, LFP, SpikeEventSeries, EventWaveform#, UnitSeries
+from pynwb.ecephys import ElectricalSeries, LFP, SpikeEventSeries
 from hdmf.backends.hdf5.h5_utils import H5DataIO
 from hdmf.data_utils import DataChunkIterator
 from pynwb.misc import AnnotationSeries
 from tqdm import tqdm
-from typing import Union
 
 from .utils import check_module
 
-PathType = Union[str, Path, None]
+
+def load_xml(xml_filepath: str):
+    return et.parse(xml_filepath).getroot()
 
 
-def load_xml(xml_filepath: PathType):
-    return et.parse(str(xml_filepath.absolute())).getroot()
-
-
-def get_channel_groups(session_path=None, xml_filepath: PathType = None):
+def get_channel_groups(session_path=None, xml_filepath: str = None):
     """Get the groups of channels that are recorded on each shank from the xml
     file
 
@@ -45,13 +41,13 @@ def get_channel_groups(session_path=None, xml_filepath: PathType = None):
 
     root = load_xml(xml_filepath)
     channel_groups = [[int(channel.text)
-                       for channel in group.find('channels')]
-                       for group in root.find('spikeDetection').find('channelGroups').findall('group')]
+                      for channel in group.find('channels')]
+                      for group in root.find('anatomicalDescription').find('channelGroups').findall('group')]
 
     return channel_groups
 
 
-def get_shank_channels(session_path=None, xml_filepath=None):
+def get_shank_channels(session_path=None, xml_filepath: str = None):
     """Read the channels on the shanks in Neuroscope xml
 
     Parameters
@@ -68,11 +64,11 @@ def get_shank_channels(session_path=None, xml_filepath=None):
         fpath_base, fname = os.path.split(session_path)
         xml_filepath = os.path.join(session_path, fname + '.xml')
 
-    soup = load_xml(xml_filepath)
+    root = load_xml(xml_filepath)
+    shank_channels = [[int(channel.text)
+                      for channel in group.find('channels')]
+                      for group in root.find('spikeDetection').find('channelGroups').findall('group')]
 
-    shank_channels = [[int(channel.string)
-                       for channel in group.find_all('channel')]
-                      for group in soup.spikeDetection.channelGroups.find_all('group')]
     return shank_channels
 
 
@@ -90,12 +86,14 @@ def get_lfp_sampling_rate(session_path=None, xml_filepath=None):
     fs: float
 
     """
-
     if xml_filepath is None:
         session_name = os.path.split(session_path)[1]
         xml_filepath = os.path.join(session_path, session_name + '.xml')
 
-    return float(load_xml(xml_filepath).lfpSamplingRate.string)
+    root = load_xml(xml_filepath)
+    lfp_sampling_rate = float(root.find('fieldPotentials').find('lfpSamplingRate').text)
+
+    return lfp_sampling_rate
 
 
 def add_position_data(nwbfile, session_path, fs=1250./32.,
@@ -235,13 +233,13 @@ def write_unit_series(nwbfile, session_path, shankn, fs=20000.):
     df = get_clusters_single_shank(session_path, shankn, fs=fs)
 
     # TO DO: link timestamps to SpikeEventSeries
-    
+
     unit_series = UnitSeries(
         name='UnitSeries' + str(shankn),
         description='shank' + str(shankn),
         num=df['id'].values + start,
         timestamps=df['time'].values)
-    
+
 
     ecephys_module = check_module(nwbfile, 'ecephys')
     if 'SpikeEventSeries' + str(shankn) in ecephys_module:
@@ -537,10 +535,9 @@ def write_spike_waveforms(nwbfile, session_path, shankn, stub=False, compression
                                           timestamps=spike_times,
                                           electrodes=table_region)
 
-
-    #if 'shank' + str(shankn) in nwbfile.electrode_groups:
-    #    nwbfile.electrode_groups['shank' + str(shankn)].event_waveform = EventWaveform(
-    #        spike_event_series=spike_event_series)
+    # if 'shank' + str(shankn) in nwbfile.electrode_groups:
+    #     nwbfile.electrode_groups['shank' + str(shankn)].event_waveform = EventWaveform(
+    #         spike_event_series=spike_event_series)
 
     check_module(nwbfile, 'ecephys').add_data_interface(spike_event_series)
 

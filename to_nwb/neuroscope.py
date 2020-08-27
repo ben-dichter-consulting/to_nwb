@@ -6,25 +6,26 @@ from glob import glob
 
 import numpy as np
 import pandas as pd
-from bs4 import BeautifulSoup
+from pathlib import Path
+from lxml import etree as et
 from pynwb.behavior import SpatialSeries
 from pynwb.ecephys import ElectricalSeries, LFP, SpikeEventSeries, EventWaveform#, UnitSeries
 from hdmf.backends.hdf5.h5_utils import H5DataIO
 from hdmf.data_utils import DataChunkIterator
 from pynwb.misc import AnnotationSeries
 from tqdm import tqdm
+from typing import Union
 
 from .utils import check_module
 
-
-def load_xml(filepath):
-    with open(filepath, 'r') as xml_file:
-        contents = xml_file.read()
-        soup = BeautifulSoup(contents, 'xml')
-    return soup
+PathType = Union[str, Path, None]
 
 
-def get_channel_groups(session_path=None, xml_filepath=None):
+def load_xml(xml_filepath: PathType):
+    return et.parse(str(xml_filepath.absolute())).getroot()
+
+
+def get_channel_groups(session_path=None, xml_filepath: PathType = None):
     """Get the groups of channels that are recorded on each shank from the xml
     file
 
@@ -42,11 +43,10 @@ def get_channel_groups(session_path=None, xml_filepath=None):
         fpath_base, fname = os.path.split(session_path)
         xml_filepath = os.path.join(session_path, fname + '.xml')
 
-    soup = load_xml(xml_filepath)
-
-    channel_groups = [[int(channel.string)
-                       for channel in group.find_all('channel')]
-                      for group in soup.channelGroups.find_all('group')]
+    root = load_xml(xml_filepath)
+    channel_groups = [[int(channel.text)
+                       for channel in group.find('channels')]
+                       for group in root.find('spikeDetection').find('channelGroups').findall('group')]
 
     return channel_groups
 

@@ -407,7 +407,10 @@ def write_lfp(nwbfile: NWBFile, data: ArrayLike, fs: float,
 
     """
     if electrode_inds is None:
-        electrode_inds = list(range(data.shape[1]))
+        if nwbfile.electrodes is not None and data.shape[1] <= len(nwbfile.electrodes.id.data[:]):
+            electrode_inds = list(range(data.shape[1]))
+        else:
+            electrode_inds = list(range(len(nwbfile.electrodes.id.data[:])))
 
     table_region = nwbfile.create_electrode_table_region(
         electrode_inds, 'electrode table reference')

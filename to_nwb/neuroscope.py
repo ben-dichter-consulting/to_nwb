@@ -12,7 +12,15 @@ from hdmf.data_utils import DataChunkIterator
 from pynwb.misc import AnnotationSeries
 from tqdm import tqdm
 from .utils import check_module
-from typing import Optional, List, ArrayLike, Iterable
+from typing import Optional, List, Iterable
+import sys
+if sys.version >= '3.8':
+    from typing import ArrayLike
+else:
+    from numpy import ndarray
+    from typing import Union, Sequence
+    # adapted from numpy typing
+    ArrayLike = Union[bool, int, float, complex, list, ndarray, Sequence]
 
 
 def load_xml(xml_filepath: str):
@@ -460,7 +468,7 @@ def add_lfp(nwbfile: NWBFile, session_path: str,
     write_lfp(nwbfile, data[:, all_shank_channels], fs, name, description)
 
 
-def get_events(session_path: str, suffixes: Iterable[int]):
+def get_events(session_path: str, suffixes: Iterable[int] = None):
     """Retrieve event information from Neuroscope evt files.
 
     Parameters

@@ -386,7 +386,7 @@ def read_lfp(session_path: str, stub: bool = False):
 
 
 def write_lfp(nwbfile: NWBFile, data: ArrayLike, fs: float,
-              electrode_inds: Optional[List[int]],
+              electrode_inds: Optional[List[int]] = None,
               name: Optional[str] = 'LFP',
               description: Optional[str] = 'local field potential signal'):
     """

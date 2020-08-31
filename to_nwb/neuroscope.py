@@ -32,7 +32,7 @@ def load_xml(xml_filepath: str):
     return et.parse(xml_filepath).getroot()
 
 
-def get_channel_groups(session_path: str, xml_filepath: Optional[str]):
+def get_channel_groups(session_path: str, xml_filepath: Optional[str] = None):
     """Retrieve all channel ids and their group structure in the Neuroscope xml.
 
     Parameters
@@ -62,7 +62,7 @@ def get_channel_groups(session_path: str, xml_filepath: Optional[str]):
     return channel_groups
 
 
-def get_shank_channels(session_path: str, xml_filepath: Optional[str]):
+def get_shank_channels(session_path: str, xml_filepath: Optional[str] = None):
     """Retrieve the channel ids belonging to the shanks in Neuroscope xml.
 
     Same as first 'nshanks' elements of get_channel_groups(...).
@@ -94,7 +94,7 @@ def get_shank_channels(session_path: str, xml_filepath: Optional[str]):
     return shank_channels
 
 
-def get_lfp_sampling_rate(session_path: str, xml_filepath: Optional[str]):
+def get_lfp_sampling_rate(session_path: str, xml_filepath: Optional[str] = None):
     """Read the LFP Sampling Rate from the xml parameter file of the Neuroscope format.
 
     Parameters
@@ -279,12 +279,12 @@ def write_unit_series(nwbfile, session_path, shankn, fs=20000.):
 
 
 def write_electrode_table(nwbfile: NWBFile, session_path: str,
-                          electrode_positions: Optional[ArrayLike],
-                          impedances: Optional[ArrayLike],
-                          locations: Optional[ArrayLike],
-                          filterings: Optional[ArrayLike],
-                          custom_columns: Optional[List[dict]],
-                          max_shanks: Optional[int]):
+                          electrode_positions: Optional[ArrayLike] = None,
+                          impedances: Optional[ArrayLike] = None,
+                          locations: Optional[ArrayLike] = None,
+                          filterings: Optional[ArrayLike] = None,
+                          custom_columns: Optional[List[dict]] = None,
+                          max_shanks: Optional[int] = 8):
     """Write the electrode table to the NWBFile object.
 
     Parameters
@@ -354,7 +354,7 @@ def read_lfp(session_path: str, stub: bool = False):
 
     Parameters
     ----------
-    session_path: PathType
+    session_path: str
     stub: bool, optional
         Default is False. If True, don't read full LFP, but instead a
         truncated version of at most size (50, n_channels)
@@ -593,8 +593,8 @@ def write_spike_waveforms(nwbfile: NWBFile, session_path: str, shankn: int,
 
 
 def add_units(nwbfile: NWBFile, session_path: str,
-              custom_cols: Optional[List[dict]],
-              max_shanks: int = 8):
+              custom_cols: Optional[List[dict]] = None,
+              max_shanks: Optional[int] = 8):
     """Add the spiking unit information to the NWBFile.
 
     Parameters

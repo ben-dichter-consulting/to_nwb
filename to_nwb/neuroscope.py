@@ -57,15 +57,13 @@ def get_channel_groups(session_path: str, xml_filepath: Optional[str] = None):
         fpath_base, fname = os.path.split(session_path)
         xml_filepath = os.path.join(session_path, fname + '.xml')
 
-    if os.path.isfile(xml_filepath):
-        root = load_xml(xml_filepath)
-        channel_groups = [[int(channel.text)
-                          for channel in group.findall('channel')]
-                          for group in root.find('anatomicalDescription').find('channelGroups').findall('group')]
-    else:
-        print("Warning: No .xml file found at the path location!"
-              "Unable to retrieve channel_groups.")
-        channel_groups = None
+    assert os.path.isfile(xml_filepath), "No .xml file found at the path location!" \
+                                         "Unable to retrieve channel_groups."
+
+    root = load_xml(xml_filepath)
+    channel_groups = [[int(channel.text)
+                      for channel in group.findall('channel')]
+                      for group in root.find('anatomicalDescription').find('channelGroups').findall('group')]
 
     return channel_groups
 
@@ -89,15 +87,14 @@ def get_shank_channels(session_path: str, xml_filepath: Optional[str] = None):
         fpath_base, fname = os.path.split(session_path)
         xml_filepath = os.path.join(session_path, fname + '.xml')
 
-    if os.path.isfile(xml_filepath):
-        root = load_xml(xml_filepath)
-        shank_channels = [[int(channel.text)
-                          for channel in group.find('channels')]
-                          for group in root.find('spikeDetection').find('channelGroups').findall('group')]
-    else:
-        print("Warning: No .xml file found at the path location!"
-              "Unable to retrieve shank_channels.")
-        shank_channels = None
+    assert os.path.isfile(xml_filepath), "No .xml file found at the path location!" \
+                                         "Unable to retrieve shank_channels."
+
+    root = load_xml(xml_filepath)
+    shank_channels = [[int(channel.text)
+                      for channel in group.find('channels')]
+                      for group in root.find('spikeDetection').find('channelGroups').findall('group')]
+    shank_channels = None
 
     return shank_channels
 
@@ -119,13 +116,11 @@ def get_lfp_sampling_rate(session_path: str, xml_filepath: Optional[str] = None)
         session_name = os.path.split(session_path)[1]
         xml_filepath = os.path.join(session_path, session_name + '.xml')
 
-    if os.path.isfile(xml_filepath):
-        root = load_xml(xml_filepath)
-        lfp_sampling_rate = float(root.find('fieldPotentials').find('lfpSamplingRate').text)
-    else:
-        print("Warning: No .xml file found at the path location!"
-              "Unable to retrieve lfp_sampling_rate.")
-        lfp_sampling_rate = None
+    assert os.path.isfile(xml_filepath), "No .xml file found at the path location!" \
+                                         "Unable to retrieve lfp_sampling_rate."
+
+    root = load_xml(xml_filepath)
+    lfp_sampling_rate = float(root.find('fieldPotentials').find('lfpSamplingRate').text)
 
     return lfp_sampling_rate
 
@@ -149,7 +144,6 @@ def add_position_data(nwbfile: NWBFile, session_path: str, fs: float = 1250./32.
     if not os.path.isfile(whl_path):
         print(whl_path + ' file not found!')
         return
-    print('warning: time may not be aligned')
     df = pd.read_csv(whl_path, sep='\t', names=names)
 
     df.index = np.arange(len(df)) / fs
@@ -376,19 +370,17 @@ def read_lfp(session_path: str, stub: bool = False):
     lfp_fs = get_lfp_sampling_rate(session_path)
     n_channels = sum(len(x) for x in get_channel_groups(session_path))
 
-    if os.path.isfile(lfp_filepath):
-        if stub:
-            max_size = 50
-            all_channels_data = np.fromfile(lfp_filepath,
-                                            dtype=np.int16,
-                                            count=max_size*n_channels).reshape(-1, n_channels)
-        else:
-            all_channels_data = np.fromfile(lfp_filepath,
-                                            dtype=np.int16).reshape(-1, n_channels)
+    assert os.path.isfile(lfp_filepath), "No .eeg file found at the path location!" \
+                                         "Unable to retrieve all_channels_data."
+
+    if stub:
+        max_size = 50
+        all_channels_data = np.fromfile(lfp_filepath,
+                                        dtype=np.int16,
+                                        count=max_size*n_channels).reshape(-1, n_channels)
     else:
-        print("Warning: No .eeg file found at the path location!"
-              "Unable to retrieve all_channels_data.")
-        all_channels_data = None
+        all_channels_data = np.fromfile(lfp_filepath,
+                                        dtype=np.int16).reshape(-1, n_channels)
 
     return lfp_fs, all_channels_data
 

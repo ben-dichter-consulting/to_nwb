@@ -118,21 +118,18 @@ def add_position_data(nwbfile, session_path, fs=1250./32.,
     print('warning: time may not be aligned')
     df = pd.read_csv(whl_path, sep='\t', names=names)
 
-    df.index = np.arange(len(df)) / fs
-    df.index.name = 'tt (sec)'
-
     nwbfile.add_acquisition(
         SpatialSeries('position_sensor0',
                       H5DataIO(df[['x0', 'y0']].values, compression='gzip'),
                       'unknown', description='raw sensor data from sensor 0',
-                      timestamps=H5DataIO(df.index.values, compression='gzip'),
+                      starting_time=0, rate=fs,
                       resolution=np.nan))
 
     nwbfile.add_acquisition(
         SpatialSeries('position_sensor1',
                       H5DataIO(df[['x1', 'y1']].values, compression='gzip'),
                       'unknown', description='raw sensor data from sensor 1',
-                      timestamps=H5DataIO(df.index.values, compression='gzip'),
+                      starting_time=0, rate=fs,
                       resolution=np.nan))
 
 

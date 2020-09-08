@@ -150,14 +150,14 @@ def add_position_data(nwbfile: NWBFile, session_path: str, fs: float = 1250./32.
         SpatialSeries('position_sensor0',
                       H5DataIO(df[['x0', 'y0']].values, compression='gzip'),
                       'unknown', description='raw sensor data from sensor 0',
-                      starting_time=0, rate=fs,
+                      starting_time=0., rate=fs,
                       resolution=np.nan))
 
     nwbfile.add_acquisition(
         SpatialSeries('position_sensor1',
                       H5DataIO(df[['x1', 'y1']].values, compression='gzip'),
                       'unknown', description='raw sensor data from sensor 1',
-                      starting_time=0, rate=fs,
+                      starting_time=0., rate=fs,
                       resolution=np.nan))
 
 

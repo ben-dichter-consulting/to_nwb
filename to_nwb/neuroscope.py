@@ -1,54 +1,47 @@
-"""
-Authors: Ben Dichter, Cody Baker
-"""
+"""Authors: Ben Dichter, Cody Baker."""
 import os
 from glob import glob
-
 import numpy as np
 import pandas as pd
 from lxml import etree as et
+from pynwb import NWBFile
 from pynwb.behavior import SpatialSeries
 from pynwb.ecephys import ElectricalSeries, LFP, SpikeEventSeries
 from hdmf.backends.hdf5.h5_utils import H5DataIO
 from hdmf.data_utils import DataChunkIterator
 from pynwb.misc import AnnotationSeries
 from tqdm import tqdm
-
 from .utils import check_module
+from typing import Optional, List, Iterable
+import sys
+if sys.version >= '3.8':
+    from typing import ArrayLike
+else:
+    from numpy import ndarray
+    from typing import Union, Sequence
+    # adapted from numpy typing
+    ArrayLike = Union[bool, int, float, complex, list, ndarray, Sequence]
 
 
 def load_xml(xml_filepath: str):
-    return et.parse(xml_filepath).getroot()
-
-
-def get_channel_groups(session_path=None, xml_filepath: str = None):
-    """Get the groups of channels that are recorded on each shank from the xml
-    file
+    """Fetch the xml data from the filepath.
 
     Parameters
     ----------
-    session_path: str
-    xml_filepath: None | str (optional)
+    xml_filepath : str
+        Absolute filepath for the xml document.
 
     Returns
     -------
-    list(list)
+    TYPE
+        lxml.etree root object of the xml document.
 
     """
-    if xml_filepath is None:
-        fpath_base, fname = os.path.split(session_path)
-        xml_filepath = os.path.join(session_path, fname + '.xml')
-
-    root = load_xml(xml_filepath)
-    channel_groups = [[int(channel.text)
-                      for channel in group.find('channels')]
-                      for group in root.find('anatomicalDescription').find('channelGroups').findall('group')]
-
-    return channel_groups
+    return et.parse(xml_filepath).getroot()
 
 
-def get_shank_channels(session_path=None, xml_filepath: str = None):
-    """Read the channels on the shanks in Neuroscope xml
+def get_channel_groups(session_path: str, xml_filepath: Optional[str] = None):
+    """Retrieve all channel ids and their group structure in the Neuroscope xml.
 
     Parameters
     ----------
@@ -64,17 +57,50 @@ def get_shank_channels(session_path=None, xml_filepath: str = None):
         fpath_base, fname = os.path.split(session_path)
         xml_filepath = os.path.join(session_path, fname + '.xml')
 
+    assert os.path.isfile(xml_filepath), "No .xml file found at the path location!" \
+                                         "Unable to retrieve channel_groups."
+
+    root = load_xml(xml_filepath)
+    channel_groups = [[int(channel.text)
+                      for channel in group.findall('channel')]
+                      for group in root.find('anatomicalDescription').find('channelGroups').findall('group')]
+
+    return channel_groups
+
+
+def get_shank_channels(session_path: str, xml_filepath: Optional[str] = None):
+    """Retrieve the channel ids belonging to the shanks in Neuroscope xml.
+
+    Same as first 'nshanks' elements of get_channel_groups(...).
+
+    Parameters
+    ----------
+    session_path: str
+    xml_filepath: None | str (optional)
+
+    Returns
+    -------
+    list(list(int))
+
+    """
+    if xml_filepath is None:
+        fpath_base, fname = os.path.split(session_path)
+        xml_filepath = os.path.join(session_path, fname + '.xml')
+
+    assert os.path.isfile(xml_filepath), "No .xml file found at the path location!" \
+                                         "Unable to retrieve shank_channels."
+
     root = load_xml(xml_filepath)
     shank_channels = [[int(channel.text)
                       for channel in group.find('channels')]
                       for group in root.find('spikeDetection').find('channelGroups').findall('group')]
+    shank_channels = None
 
     return shank_channels
 
 
-def get_lfp_sampling_rate(session_path=None, xml_filepath=None):
-    """Reads the LFP Sampling Rate from the xml parameter file of the
-    Neuroscope format
+def get_lfp_sampling_rate(session_path: str, xml_filepath: Optional[str] = None):
+    """Read the LFP Sampling Rate from the xml parameter file of the Neuroscope format.
 
     Parameters
     ----------
@@ -90,15 +116,18 @@ def get_lfp_sampling_rate(session_path=None, xml_filepath=None):
         session_name = os.path.split(session_path)[1]
         xml_filepath = os.path.join(session_path, session_name + '.xml')
 
+    assert os.path.isfile(xml_filepath), "No .xml file found at the path location!" \
+                                         "Unable to retrieve lfp_sampling_rate."
+
     root = load_xml(xml_filepath)
     lfp_sampling_rate = float(root.find('fieldPotentials').find('lfpSamplingRate').text)
 
     return lfp_sampling_rate
 
 
-def add_position_data(nwbfile, session_path, fs=1250./32.,
+def add_position_data(nwbfile: NWBFile, session_path: str, fs: float = 1250./32.,
                       names=('x0', 'y0', 'x1', 'y1')):
-    """Read raw position sensor data from .whl file
+    """Read raw position sensor data from .whl file.
 
     Parameters
     ----------
@@ -115,7 +144,6 @@ def add_position_data(nwbfile, session_path, fs=1250./32.,
     if not os.path.isfile(whl_path):
         print(whl_path + ' file not found!')
         return
-    print('warning: time may not be aligned')
     df = pd.read_csv(whl_path, sep='\t', names=names)
 
     nwbfile.add_acquisition(
@@ -133,9 +161,8 @@ def add_position_data(nwbfile, session_path, fs=1250./32.,
                       resolution=np.nan))
 
 
-def read_spike_times(session_path, shankn, fs=20000.):
-    """
-    Read .res files to get spike times
+def read_spike_times(session_path: str, shankn: int, fs: float = 20000.):
+    """Read .res files to get spike times.
 
     Parameters
     ----------
@@ -147,7 +174,7 @@ def read_spike_times(session_path, shankn, fs=20000.):
 
     Returns
     -------
-
+    list(float)
     """
     _, session_name = os.path.split(session_path)
     timing_file = os.path.join(session_path, session_name + '.res.' + str(shankn))
@@ -156,9 +183,8 @@ def read_spike_times(session_path, shankn, fs=20000.):
     return timing_df.values.ravel() / fs
 
 
-def read_spike_clustering(session_path, shankn):
-    """
-    Read .clu files to get spike cluster assignments for a single shank
+def read_spike_clustering(session_path: str, shankn: int):
+    """Read .clu files to get spike cluster assignments for a single shank.
 
     Parameters
     ----------
@@ -170,19 +196,21 @@ def read_spike_clustering(session_path, shankn):
     -------
     np.ndarray
 
-
     """
     session_name = os.path.split(session_path)[1]
     id_file = os.path.join(session_path, session_name + '.clu.' + str(shankn))
     id_df = pd.read_csv(id_file, names=('id',))
-    id_df = id_df[1:]  # the first number is the number of clusters
+    # The first number is the number of unique ids,
+    # including 0 as an unsorted cluster and 1 as mult-unit activity
+    id_df = id_df[1:]
 
     return id_df.values.ravel()
 
 
-def get_clusters_single_shank(session_path, shankn, fs=20000.):
-    """Read the spike time data for a from the .res and .clu files for a single
-    shank. Automatically removes noise and multi-unit.
+def get_clusters_single_shank(session_path: str, shankn: int, fs: float = 20000.):
+    """Read the spike time data for a from the .res and .clu files for a single shank.
+
+    Automatically removes noise and multi-unit.
 
     Parameters
     ----------
@@ -199,20 +227,20 @@ def get_clusters_single_shank(session_path, shankn, fs=20000.):
         indicates spike time.
 
     """
-
     spike_times = read_spike_times(session_path, shankn, fs=fs)
     spike_ids = read_spike_clustering(session_path, shankn)
     df = pd.DataFrame({'id': spike_ids, 'time': spike_times})
+    # id 0 is unsorted noise and 1 as mult-unit activity
     noise_inds = ((df.iloc[:, 0] == 0) | (df.iloc[:, 0] == 1)).values.ravel()
     df = df.loc[np.logical_not(noise_inds)].reset_index(drop=True)
-
     df['id'] -= 2
 
     return df
 
 
+# TODO: pending nwb changes to waveforms
 def write_unit_series(nwbfile, session_path, shankn, fs=20000.):
-    """
+    """Not yet implemented.
 
     Parameters
     ----------
@@ -246,12 +274,17 @@ def write_unit_series(nwbfile, session_path, shankn, fs=20000.):
 
     ecephys_module.add_data_interface(unit_series)
     """
+    raise NotImplementedError
 
 
-def write_electrode_table(nwbfile, session_path, electrode_positions=None,
-                          impedances=None, locations=None, filterings=None, custom_columns=(),
-                          max_shanks=None):
-    """
+def write_electrode_table(nwbfile: NWBFile, session_path: str,
+                          electrode_positions: Optional[ArrayLike] = None,
+                          impedances: Optional[ArrayLike] = None,
+                          locations: Optional[ArrayLike] = None,
+                          filterings: Optional[ArrayLike] = None,
+                          custom_columns: Optional[List[dict]] = None,
+                          max_shanks: Optional[int] = 8):
+    """Write the electrode table to the NWBFile object.
 
     Parameters
     ----------
@@ -315,57 +348,66 @@ def write_electrode_table(nwbfile, session_path, electrode_positions=None,
                 shank_electrode_number=shank_electrode_number, **custom_data)
 
 
-def read_lfp(session_path, stub=False):
-    """
+def read_lfp(session_path: str, stub: bool = False):
+    """Read LFP data from Neuroscope eeg file.
 
     Parameters
     ----------
     session_path: str
     stub: bool, optional
-        Default is False. If True, don't read LFP, but instead add a small
-        amount of placeholder data. This is useful for rapidly checking new
-        features without the time-intensive data read step.
+        Default is False. If True, don't read full LFP, but instead a
+        truncated version of at most size (50, n_channels)
 
     Returns
     -------
     lfp_fs, all_channels_data
-
     """
-    lfp_fs = get_lfp_sampling_rate(session_path)
-    n_channels = sum(len(x) for x in get_channel_groups(session_path))
-    if stub:
-        all_channels_lfp = np.random.randn(1000, n_channels)  # use for dev testing for speed
-        return lfp_fs, all_channels_lfp
-
     fpath_base, fname = os.path.split(session_path)
     lfp_filepath = os.path.join(session_path, fname + '.eeg')
+    lfp_fs = get_lfp_sampling_rate(session_path)
+    n_channels = sum(len(x) for x in get_channel_groups(session_path))
 
-    all_channels_data = np.fromfile(lfp_filepath, dtype=np.int16).reshape(-1, n_channels)
+    assert os.path.isfile(lfp_filepath), "No .eeg file found at the path location!" \
+                                         "Unable to retrieve all_channels_data."
+
+    if stub:
+        max_size = 50
+        all_channels_data = np.fromfile(lfp_filepath,
+                                        dtype=np.int16,
+                                        count=max_size*n_channels).reshape(-1, n_channels)
+    else:
+        all_channels_data = np.fromfile(lfp_filepath,
+                                        dtype=np.int16).reshape(-1, n_channels)
 
     return lfp_fs, all_channels_data
 
 
-def write_lfp(nwbfile, data, fs, name='LFP', description='local field potential signal', electrode_inds=None):
+def write_lfp(nwbfile: NWBFile, data: ArrayLike, fs: float,
+              electrode_inds: Optional[List[int]] = None,
+              name: Optional[str] = 'LFP',
+              description: Optional[str] = 'local field potential signal'):
     """
-    Add LFP from neuroscope to a "ecephys" processing module of an NWBFile
+    Add LFP from neuroscope to a "ecephys" processing module of an NWBFile.
 
     Parameters
     ----------
     nwbfile: pynwb.NWBFile
     data: array-like
     fs: float
-    name: str
-    description: str
-    electrode_inds: list(int)
+    electrode_inds: list(int), optional
+    name: str, optional
+    description: str, optional
 
     Returns
     -------
     LFP pynwb.ecephys.ElectricalSeries
 
     """
-
     if electrode_inds is None:
-        electrode_inds = list(range(data.shape[1]))
+        if nwbfile.electrodes is not None and data.shape[1] <= len(nwbfile.electrodes.id.data[:]):
+            electrode_inds = list(range(data.shape[1]))
+        else:
+            electrode_inds = list(range(len(nwbfile.electrodes.id.data[:])))
 
     table_region = nwbfile.create_electrode_table_region(
         electrode_inds, 'electrode table reference')
@@ -391,8 +433,11 @@ def write_lfp(nwbfile, data, fs, name='LFP', description='local field potential 
     return lfp_electrical_series
 
 
-def add_lfp(nwbfile, session_path, name='LFP', description='local field potential signal', stub=False):
-    """
+def add_lfp(nwbfile: NWBFile, session_path: str,
+            name: Optional[str] = 'LFP',
+            description: Optional[str] = 'local field potential signal',
+            stub: bool = False):
+    """Read and write LFP data to the NWBFile.
 
     Parameters
     ----------
@@ -406,15 +451,15 @@ def add_lfp(nwbfile, session_path, name='LFP', description='local field potentia
         features without the time-intensive data read step.
 
     """
-
     fs, data = read_lfp(session_path, stub=stub)
     shank_channels = get_shank_channels(session_path)
     all_shank_channels = np.concatenate(shank_channels)
     write_lfp(nwbfile, data[:, all_shank_channels], fs, name, description)
 
 
-def get_events(session_path, suffixes=None):
-    """
+def get_events(session_path: str, suffixes: Iterable[int] = None):
+    """Retrieve event information from Neuroscope evt files.
+
     Parameters
     ----------
     session_path: str
@@ -438,17 +483,23 @@ def get_events(session_path, suffixes=None):
             name = '.'.join(parts[1:-1])
         else:
             name = parts[-1]
-        df = pd.read_csv(evt_file, sep='\t', names=('time', 'desc'))
-        if len(df):
-            timestamps = df.values[:, 0].astype(float) / 1000
-            data = df['desc'].values
-            annotation_series = AnnotationSeries(name=name, data=data, timestamps=timestamps)
-            out.append(annotation_series)
+        if os.path.isfile(evt_file):
+            df = pd.read_csv(evt_file, sep='\t', names=('time', 'desc'))
+            if len(df):
+                timestamps = df.values[:, 0].astype(float) / 1000
+                data = df['desc'].values
+                annotation_series = AnnotationSeries(name=name, data=data, timestamps=timestamps)
+                out.append(annotation_series)
+        else:
+            print("Warning: No .evt file found at the path location!"
+                  "Unable to retrieve annotation_series.")
+            out = None
+
     return out
 
 
-def write_events(nwbfile, session_path, suffixes=None, module=None):
-    """
+def write_events(nwbfile: NWBFile, session_path: str, suffixes: Iterable[str], module=None):
+    """Write the event information from Neurscope into the NWBFile.
 
     Parameters
     ----------
@@ -475,17 +526,23 @@ def write_events(nwbfile, session_path, suffixes=None, module=None):
             name = '.'.join(parts[1:-1])
         else:
             name = parts[-1]
-        df = pd.read_csv(evt_file, sep='\t', names=('time', 'desc'))
-        if len(df):
-            timestamps = df.values[:, 0].astype(float) / 1000
-            data = df['desc'].values
-            annotation_series = AnnotationSeries(
-                name=name, data=data, timestamps=timestamps)
-            module.add_data_interface(annotation_series)
+        if os.path.isfile(evt_file):
+            df = pd.read_csv(evt_file, sep='\t', names=('time', 'desc'))
+            if len(df):
+                timestamps = df.values[:, 0].astype(float) / 1000
+                data = df['desc'].values
+                annotation_series = AnnotationSeries(
+                    name=name, data=data, timestamps=timestamps)
+                module.add_data_interface(annotation_series)
+        else:
+            print("Warning: No .evt file found at the path location!"
+                  "Unable to write annotation_series.")
 
 
-def write_spike_waveforms(nwbfile, session_path, shankn, stub=False, compression='gzip'):
-    """
+def write_spike_waveforms(nwbfile: NWBFile, session_path: str, shankn: int,
+                          stub: bool = False,
+                          compression: Optional[str] = 'gzip'):
+    """Write spike waveforms to NWBFile.
 
     Parameters
     ----------
@@ -495,22 +552,15 @@ def write_spike_waveforms(nwbfile, session_path, shankn, stub=False, compression
     stub: bool, optional
         default: False
     compression: str (optional)
-
-    Returns
-    -------
-
     """
-
     session_name = os.path.split(session_path)[1]
     xml_filepath = os.path.join(session_path, session_name + '.xml')
-
     group = nwbfile.electrode_groups['shank' + str(shankn)]
     elec_idx = list(np.where(np.array(nwbfile.ec_electrodes['group']) == group)[0])
     table_region = nwbfile.create_electrode_table_region(elec_idx, group.name + ' region')
-
     nchan = len(elec_idx)
-    soup = load_xml(xml_filepath)
-    nsamps = int(soup.spikes.nSamples.string)
+    root = load_xml(xml_filepath)
+    nsamps = int(root.find('neuroscope').find('spikes').find('nSamples').text)
 
     if stub:
         spks = np.random.randn(10, nsamps, nchan)
@@ -539,8 +589,10 @@ def write_spike_waveforms(nwbfile, session_path, shankn, stub=False, compression
     check_module(nwbfile, 'ecephys').add_data_interface(spike_event_series)
 
 
-def add_units(nwbfile, session_path, custom_cols=None, max_shanks=8):
-    """
+def add_units(nwbfile: NWBFile, session_path: str,
+              custom_cols: Optional[List[dict]] = None,
+              max_shanks: Optional[int] = 8):
+    """Add the spiking unit information to the NWBFile.
 
     Parameters
     ----------
@@ -548,14 +600,13 @@ def add_units(nwbfile, session_path, custom_cols=None, max_shanks=8):
     session_path: str
     custom_cols: list(dict), optional
         [{name, description, data, kwargs}]
-    max_shanks: int
+    max_shanks: int, optional
         only take the first <max_shanks> channel groups
 
     Returns
     -------
-
+    nwbfile
     """
-
     nwbfile.add_unit_column('shank_id', '0-indexed id of cluster of shank')
     nshanks = len(get_shank_channels(session_path))
     nshanks = min((max_shanks, nshanks))
